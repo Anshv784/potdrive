@@ -689,7 +689,7 @@ export function Drive() {
                   {shown.map((f) => {
                     const on = selected === f.root;
                     const { frac, tone } = expiryTone(f.expiresAt, head);
-                    const muted = on ? "text-white/80" : "text-label-2";
+                    const muted = "text-label-2";
                     return (
                       <tr
                         key={f.root}
@@ -703,13 +703,13 @@ export function Drive() {
                           e.stopPropagation();
                           openMenu(f, e.clientX, e.clientY);
                         }}
-                        className={`cursor-default border-b border-sep transition-colors ${on ? "bg-accent text-white" : "hover:bg-bg-2"}`}
+                        className={`cursor-default border-b border-sep transition-colors ${on ? "bg-accent-soft" : "hover:bg-bg-2"}`}
                       >
                         <td className="py-2 pl-2">
                           <div className="flex items-center gap-3">
                             <Thumb f={f} size={22} />
                             <span className="truncate font-medium">{f.name || "Private file"}</span>
-                            {f.isPrivate && <Lock className={`size-3.5 shrink-0 ${on ? "text-white/80" : "text-label-3"}`} />}
+                            {f.isPrivate && <Lock className="size-3.5 shrink-0 text-label-3" />}
                           </div>
                         </td>
                         <td className={`hidden truncate py-2 lg:table-cell ${muted}`}>{kindOf(f)}</td>
@@ -717,7 +717,7 @@ export function Drive() {
                         <td className={`hidden py-2 md:table-cell ${muted}`}>{relTime(storedTime(f, head))}</td>
                         <td className={`py-2 ${muted}`}>
                           <span className="inline-flex items-center gap-1.5 tabular">
-                            <Ring value={frac} size={12} stroke={2.5} tone={on ? "white" : tone} />
+                            <Ring value={frac} size={12} stroke={2.5} tone={tone} />
                             {f.expiresAt && head ? untilBlock(f.expiresAt, head) : "–"}
                           </span>
                         </td>
@@ -729,7 +729,7 @@ export function Drive() {
                               openMenu(f, r.right - 208, r.bottom + 4);
                             }}
                             aria-label={`Actions for ${f.name || "file"}`}
-                            className={`rounded-md p-1 ${on ? "hover:bg-white/20" : "text-label-2 hover:bg-fill"}`}
+                            className="rounded-md p-1 text-label-2 hover:bg-fill"
                           >
                             <MoreHorizontal className="size-4" />
                           </button>
@@ -888,7 +888,7 @@ export function Drive() {
               />
               <MenuItem
                 icon={Info}
-                label="Get Info"
+                label="Details"
                 onClick={() => {
                   setMenu(null);
                   setSelected(f.root);
@@ -969,7 +969,7 @@ function MenuItem({ icon: Icon, label, onClick, danger }: { icon: typeof Info; l
     <button
       role="menuitem"
       onClick={onClick}
-      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[14px] transition-colors hover:bg-accent hover:text-white ${danger ? "text-red" : ""}`}
+      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[14px] transition-colors hover:bg-fill ${danger ? "text-red" : ""}`}
     >
       <Icon className="size-4" />
       {label}

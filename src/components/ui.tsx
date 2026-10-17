@@ -71,10 +71,10 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors duration-200 ease-apple disabled:opacity-40 ${checked ? "bg-green" : "bg-fill-2"}`}
+      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-40 ${checked ? "bg-accent" : "bg-fill-2"}`}
     >
       <span
-        className={`absolute left-[2px] top-[2px] size-[27px] rounded-full bg-white shadow-[0_3px_8px_rgb(0_0_0/0.15),0_3px_1px_rgb(0_0_0/0.06)] transition-transform duration-200 ease-apple ${checked ? "translate-x-5" : ""}`}
+        className={`absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow-[0_1px_3px_rgb(0_0_0/0.25)] transition-transform duration-200 ${checked ? "translate-x-5" : ""}`}
       />
     </button>
   );
@@ -128,9 +128,9 @@ export function Group({
 }) {
   return (
     <section className={className}>
-      {title && <h3 className="mb-1.5 px-4 text-[13px] uppercase tracking-normal text-label-2">{title}</h3>}
-      <div className={`overflow-hidden rounded-xl [&>*+*]:border-t [&>*+*]:border-sep ${gray ? "bg-bg-2" : "bg-surface"}`}>{children}</div>
-      {footer && <p className="mt-1.5 px-4 text-[13px] leading-snug text-label-2">{footer}</p>}
+      {title && <h3 className="mb-2 px-1 text-[13px] font-medium text-label-2">{title}</h3>}
+      <div className={`overflow-hidden rounded-xl ring-1 ring-sep [&>*+*]:border-t [&>*+*]:border-sep ${gray ? "bg-bg-2" : "bg-surface"}`}>{children}</div>
+      {footer && <p className="mt-2 px-1 text-[12px] leading-snug text-label-2">{footer}</p>}
     </section>
   );
 }
@@ -150,10 +150,9 @@ export function Row({ label, detail, children, sub }: { label: ReactNode; detail
 
 export function Spinner({ className = "size-4" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={`spin ${className}`} aria-hidden>
-      {Array.from({ length: 8 }, (_, i) => (
-        <rect key={i} x="11" y="2" width="2" height="6" rx="1" fill="currentColor" opacity={0.15 + (i / 8) * 0.85} transform={`rotate(${i * 45} 12 12)`} />
-      ))}
+    <svg viewBox="0 0 24 24" fill="none" className={`spin ${className}`} aria-hidden>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" opacity="0.2" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
     </svg>
   );
 }
@@ -218,7 +217,7 @@ export function DocIcon({ type, size = 56 }: { type: string; size?: number }) {
       <path d="M6 2h25l13 13v39a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V6a4 4 0 0 1 4-4z" fill="var(--surface)" stroke="var(--sep-2)" strokeWidth="1" />
       <path d="M31 2v9a4 4 0 0 0 4 4h9" fill="var(--bg-2)" stroke="var(--sep-2)" strokeWidth="1" />
       <rect x="6" y="38" width={Math.max(18, t.length * 7 + 8)} height="12" rx="3" fill={color} />
-      <text x="10" y="47" fill="white" fontSize="8.5" fontWeight="700" fontFamily="-apple-system, BlinkMacSystemFont, Inter, sans-serif" letterSpacing="0.3">
+      <text x="10" y="47" fill="white" fontSize="8.5" fontWeight="700" fontFamily="Inter, ui-sans-serif, system-ui, sans-serif" letterSpacing="0.3">
         {t}
       </text>
       <path d="M10 18h18M10 23h24M10 28h20" stroke="var(--fill-2)" strokeWidth="2" strokeLinecap="round" />

@@ -230,7 +230,7 @@ export function FileView({ cid, nameHint }: { cid: string; nameHint?: string }) 
                     : "The Portaldot node didn't answer. Try again in a moment."}
               </p>
               <Button variant="gray" className="mt-5" onClick={() => setRun((r) => r + 1)}>
-                <RotateCw className="size-4" /> Try Again
+                <RotateCw className="size-4" /> Try again
               </Button>
             </div>
           )}
@@ -311,7 +311,7 @@ export function FileView({ cid, nameHint }: { cid: string; nameHint?: string }) 
             <div className="break-all px-4 pt-3 font-mono text-[12px] text-label-2 [letter-spacing:0]">{cid}</div>
             <div className="flex px-2 py-1.5">
               <CopyButton text={cid} label="Copy ID" className="text-[15px]" />
-              <CopyButton text={`${typeof window === "undefined" ? "" : window.location.origin}/ipfs/${cid}`} label="Copy Gateway URL" className="ml-auto text-[15px]" />
+              <CopyButton text={`${typeof window === "undefined" ? "" : window.location.origin}/ipfs/${cid}`} label="Copy gateway URL" className="ml-auto text-[15px]" />
             </div>
           </Group>
         </aside>

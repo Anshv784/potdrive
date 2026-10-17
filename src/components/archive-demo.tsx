@@ -102,10 +102,10 @@ export function ArchiveDemo() {
     >
       {/* window chrome */}
       <div className="flex h-11 items-center gap-2 border-b border-sep bg-surface-2 px-4">
-        <span className="size-3 rounded-full bg-[#ff5f57]" />
-        <span className="size-3 rounded-full bg-[#febc2e]" />
-        <span className="size-3 rounded-full bg-[#28c840]" />
-        <span className="ml-3 hidden text-[13px] font-medium text-label-2 sm:inline">What goes on chain</span>
+        <span className="text-[13px] font-medium text-label-2">
+          <span className="sm:hidden">On chain</span>
+          <span className="hidden sm:inline">What goes on chain</span>
+        </span>
         <Button variant="gray" size="sm" className="ml-auto h-7 text-[12px]" onClick={() => input.current?.click()}>
           <span className="sm:hidden">Your file</span>
           <span className="hidden sm:inline">Try your own file</span>

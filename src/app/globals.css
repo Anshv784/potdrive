@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
-/* Apple-style system: SF Pro, white / #f5f5f7 sections, one blue accent, iOS semantic colors.
-   Light and dark follow the OS, like apple.com and iOS. */
+/* Clean, cross-platform system: one typeface on every OS, white / soft-gray sections,
+   a single indigo accent (Portaldot's violet-blue), light and dark following the OS. */
 :root {
   color-scheme: light dark;
   --bg: #ffffff;
@@ -15,10 +15,10 @@
   --label-3: #86868b;
   --sep: rgb(0 0 0 / 0.1);
   --sep-2: rgb(0 0 0 / 0.16);
-  --accent: #0071e3;
-  --accent-hover: #0077ed;
-  --link: #0066cc;
-  --accent-soft: rgb(0 113 227 / 0.1);
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --link: #4f46e5;
+  --accent-soft: rgb(79 70 229 / 0.1);
   --green: #34c759;
   --green-soft: rgb(52 199 89 / 0.12);
   --orange: #ff9500;
@@ -45,10 +45,10 @@
     --label-3: #86868b;
     --sep: rgb(255 255 255 / 0.12);
     --sep-2: rgb(255 255 255 / 0.2);
-    --accent: #0a84ff;
-    --accent-hover: #2997ff;
-    --link: #2997ff;
-    --accent-soft: rgb(10 132 255 / 0.16);
+    --accent: #6366f1;
+    --accent-hover: #818cf8;
+    --link: #a5b4fc;
+    --accent-soft: rgb(129 140 248 / 0.16);
     --green: #30d158;
     --green-soft: rgb(48 209 88 / 0.16);
     --orange: #ff9f0a;
@@ -85,9 +85,9 @@
   --color-red-soft: var(--red-soft);
   --color-material: var(--material);
 
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", var(--font-inter), "Helvetica Neue", Arial, sans-serif;
-  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", var(--font-inter), "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, var(--font-geist-mono), monospace;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, Menlo, Consolas, monospace;
 
   --shadow-card: var(--shadow);
   --shadow-float: var(--shadow-lg);
@@ -105,10 +105,10 @@ html {
 
 body {
   background: var(--bg);
-  font-family: var(--font-sans);
-  font-size: 17px;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
   line-height: 1.47;
-  letter-spacing: -0.022em;
+  letter-spacing: -0.011em;
   min-height: 100dvh;
 }
 
@@ -122,11 +122,11 @@ body {
   border-radius: 8px;
 }
 
-/* Apple display type: tight tracking that loosens as size drops. */
+/* Display type: tight tracking on large headings. */
 .headline {
-  font-family: var(--font-display);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   font-weight: 600;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.025em;
   line-height: 1.05;
 }
 
@@ -165,8 +165,8 @@ body {
   }
 }
 
-/* Long-form docs, Apple Developer style. */
-.prose-doc h2 { font-family: var(--font-display); font-weight: 600; font-size: 2rem; letter-spacing: -0.012em; line-height: 1.12; margin: 3.5rem 0 1rem; color: var(--label); }
+/* Long-form docs. */
+.prose-doc h2 { font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif; font-weight: 600; font-size: 2rem; letter-spacing: -0.012em; line-height: 1.12; margin: 3.5rem 0 1rem; color: var(--label); }
 .prose-doc h3 { font-weight: 600; font-size: 1.2rem; margin: 2rem 0 0.5rem; color: var(--label); }
 .prose-doc p, .prose-doc li { color: var(--label-2); line-height: 1.6; }
 .prose-doc p { margin: 0.85rem 0; }
@@ -175,7 +175,7 @@ body {
 .prose-doc li { margin: 0.35rem 0; }
 .prose-doc a { color: var(--link); }
 .prose-doc a:hover { text-decoration: underline; }
-.prose-doc code:not(pre code) { font-family: var(--font-mono); font-size: 0.84em; background: var(--fill); padding: 0.12em 0.4em; border-radius: 6px; color: var(--label); letter-spacing: 0; }
+.prose-doc code:not(pre code) { font-family: var(--font-geist-mono), ui-monospace, Menlo, Consolas, monospace; font-size: 0.84em; background: var(--fill); padding: 0.12em 0.4em; border-radius: 6px; color: var(--label); letter-spacing: 0; }
 .prose-doc td code { white-space: nowrap; }
 .prose-doc table { width: 100%; border-collapse: collapse; margin: 1.25rem 0; font-size: 0.92rem; }
 .prose-doc th, .prose-doc td { text-align: left; padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--sep); color: var(--label-2); vertical-align: top; }

@@ -96,7 +96,7 @@ export function ConnectCard({ onPick }: { onPick: (a: InjectedAccount) => void }
 
         {accounts.length > 0 && (
           <>
-            <h3 className="mb-1.5 mt-6 px-4 text-[13px] uppercase text-label-2">Choose an account</h3>
+            <h3 className="mb-2 mt-6 px-1 text-[13px] font-medium text-label-2">Choose an account</h3>
             <div className="overflow-hidden rounded-xl bg-bg-2">
               {accounts.map((a) => (
                 <button

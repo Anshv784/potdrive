@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { motion } from "motion/react";
-import { Check, Gem, HeartPulse, Send } from "lucide-react";
+import { Check, Gem, HeartPulse, Send, X } from "lucide-react";
 import type { ApiPromise } from "@polkadot/api";
 import type { Address, Hex } from "viem";
 import { formatPot } from "@potdrive/sdk/network";
@@ -25,16 +25,20 @@ export function Sheet({ title, onClose, children, done }: { title: string; onClo
         className="max-h-[92dvh] w-full max-w-[460px] overflow-y-auto rounded-t-[22px] bg-bg-2 shadow-float sm:rounded-[22px]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="material sticky top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center border-b border-sep px-4 py-3">
-          <button onClick={onClose} className="justify-self-start text-[17px] text-link">
-            {done ? "" : "Cancel"}
-          </button>
-          <div className="text-[17px] font-semibold">{title}</div>
-          <button onClick={onClose} className="justify-self-end text-[17px] font-semibold text-link">
-            {done ? "Done" : ""}
+        <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-sep bg-bg-2/95 px-5 py-3.5 backdrop-blur">
+          <div className="flex-1 text-[16px] font-semibold">{title}</div>
+          <button onClick={onClose} aria-label="Close" className="grid size-8 place-items-center rounded-full text-label-2 hover:bg-fill">
+            <X className="size-4" />
           </button>
         </div>
-        <div className="space-y-6 px-4 pb-8 pt-6 sm:px-6">{children}</div>
+        <div className="space-y-6 px-4 pb-8 pt-6 sm:px-6">
+          {children}
+          {done && (
+            <Button size="lg" variant="gray" className="w-full" onClick={onClose}>
+              Done
+            </Button>
+          )}
+        </div>
       </motion.div>
     </div>
   );
@@ -168,7 +172,7 @@ export function ShareSheet({ f, api, account, onClose }: { f: DriveFile; api: Ap
   const blocked = !REGISTRY ? "Sharing to a wallet needs the registry contract, which isn't deployed on this build." : !f.registered ? "Only files recorded in the registry can be shared to a wallet." : !f.key ? "Only private files have a key to share. Public files can be shared with their link." : null;
 
   return (
-    <Sheet title="Share with a Wallet" onClose={onClose} done={state === "done"}>
+    <Sheet title="Share with a wallet" onClose={onClose} done={state === "done"}>
       <FileHeader f={f} icon={<span className="grid size-14 place-items-center rounded-2xl bg-accent-soft text-accent"><Send className="size-7" /></span>} />
       <Group footer="The file key is sealed to the recipient's inbox key (X25519 + HKDF + AES-GCM) and published in a Shared event. Nobody else, including PotDrive, can read it.">
         <div className="px-4 py-3">
@@ -232,7 +236,7 @@ export function FundSheet({ f, api, account, onClose }: { f: DriveFile; api: Api
   const blocked = !REGISTRY ? "Keep-alive is held by the registry contract, which isn't deployed on this build." : !f.registered ? "This file isn't recorded in the registry, so it can't hold keep-alive. Renew it directly instead." : null;
 
   return (
-    <Sheet title="Keep Alive" onClose={onClose} done={state === "done"}>
+    <Sheet title="Keep alive" onClose={onClose} done={state === "done"}>
       <FileHeader f={f} icon={<span className="grid size-14 place-items-center rounded-2xl bg-green-soft text-green"><HeartPulse className="size-7" /></span>} />
       <Group title="Add" footer="Anyone can fund any file, not only its owner. The keeper can only take what each renewal costs, and the owner can withdraw the rest.">
         <div className="px-3 py-2.5">
@@ -246,7 +250,7 @@ export function FundSheet({ f, api, account, onClose }: { f: DriveFile; api: Api
       {state === "error" && <Result ok={false}>{msg}</Result>}
       {state !== "done" && (
         <Button size="lg" className="w-full" disabled={!!blocked || value === null || state === "working" || !api} onClick={fund}>
-          {state === "working" ? "Waiting for your wallet…" : "Add Keep-Alive"}
+          {state === "working" ? "Waiting for your wallet…" : "Add keep-alive"}
         </Button>
       )}
     </Sheet>
@@ -283,7 +287,7 @@ export function InboxSheet({ api, account, onClose }: { api: ApiPromise | null; 
   };
 
   return (
-    <Sheet title="Receive Shared Files" onClose={onClose} done={state === "done"}>
+    <Sheet title="Receive shared files" onClose={onClose} done={state === "done"}>
       <p className="text-center text-[15px] text-label-2">
         PotDrive creates an X25519 key pair on this device and publishes only the public half to the registry. People can then seal private files to
         your address. The private half stays in this browser.
@@ -293,7 +297,7 @@ export function InboxSheet({ api, account, onClose }: { api: ApiPromise | null; 
       {state === "error" && <Result ok={false}>{msg}</Result>}
       {state !== "done" && (
         <Button size="lg" className="w-full" disabled={!REGISTRY || state === "working" || !api} onClick={setup}>
-          {state === "working" ? "Waiting for your wallet…" : "Set Up Inbox"}
+          {state === "working" ? "Waiting for your wallet…" : "Set up inbox"}
         </Button>
       )}
     </Sheet>

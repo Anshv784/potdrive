@@ -77,6 +77,8 @@ export function Toc() {
 
 export function SearchButton() {
   const [open, setOpen] = useState(false);
+  const [mac, setMac] = useState(false);
+  useEffect(() => setMac(/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)), []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -95,7 +97,7 @@ export function SearchButton() {
         className="flex h-9 w-full items-center gap-2 rounded-lg bg-bg-2 px-3 text-[14px] text-label-2 transition-colors duration-200 hover:bg-fill"
       >
         <Search className="size-4" /> Search docs
-        <kbd className="ml-auto rounded-md bg-surface px-1.5 font-sans text-[11px] text-label-3 ring-1 ring-sep">⌘K</kbd>
+        <kbd className="ml-auto rounded-md bg-surface px-1.5 font-sans text-[11px] text-label-3 ring-1 ring-sep">{mac ? "⌘K" : "Ctrl K"}</kbd>
       </button>
       {open && <SearchDialog onClose={() => setOpen(false)} />}
     </>
@@ -162,10 +164,10 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
               <button
                 onMouseEnter={() => setSel(i)}
                 onClick={() => go(d.href)}
-                className={`w-full rounded-lg px-3 py-2.5 text-left ${i === sel ? "bg-accent text-white" : ""}`}
+                className={`w-full rounded-lg px-3 py-2.5 text-left ${i === sel ? "bg-accent-soft" : ""}`}
               >
                 <div className="text-[15px] font-medium">{d.title}</div>
-                <div className={`text-[13px] ${i === sel ? "text-white/80" : "text-label-2"}`}>{d.summary}</div>
+                <div className="text-[13px] text-label-2">{d.summary}</div>
               </button>
             </li>
           ))}

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowUpRight, Check, ChevronDown, Lock, X } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, Lock, Minus, X } from "lucide-react";
 import type { ApiPromise } from "@polkadot/api";
 import type { PreparedFile } from "@potdrive/sdk/prepare";
 import type { BlockState, Estimate, Stage, UploadEvent, UploadResult } from "@potdrive/sdk/upload";
@@ -332,28 +332,18 @@ export function UploadFlow({
         transition={{ type: "spring", stiffness: 380, damping: 36 }}
         className="max-h-[94dvh] w-full max-w-[540px] overflow-y-auto rounded-t-[22px] bg-bg-2 shadow-float sm:rounded-[22px]"
       >
-        {/* sheet header */}
-        <div className="material sticky top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center border-b border-sep px-4 py-3">
-          <div>
-            {phase !== "running" && phase !== "done" && (
-              <button onClick={onClose} className="text-[17px] text-link">
-                Cancel
-              </button>
-            )}
-          </div>
-          <div className="text-[17px] font-semibold">{phase === "done" ? "Stored" : phase === "running" ? "Storing" : "New Upload"}</div>
-          <div className="text-right">
-            {phase === "done" && (
-              <button onClick={onClose} className="text-[17px] font-semibold text-link">
-                Done
-              </button>
-            )}
-            {phase === "running" && (
-              <button onClick={onMinimize} className="text-[17px] text-link">
-                Hide
-              </button>
-            )}
-          </div>
+        {/* dialog header */}
+        <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-sep bg-bg-2/95 px-5 py-3.5 backdrop-blur">
+          <div className="flex-1 text-[16px] font-semibold">{phase === "done" ? "Stored on Portaldot" : phase === "running" ? "Storing…" : parent ? "Upload new version" : "Upload"}</div>
+          {phase === "running" ? (
+            <button onClick={onMinimize} aria-label="Minimize" title="Keep uploading in the background" className="grid size-8 place-items-center rounded-full text-label-2 hover:bg-fill">
+              <Minus className="size-4" />
+            </button>
+          ) : (
+            <button onClick={onClose} aria-label="Close" className="grid size-8 place-items-center rounded-full text-label-2 hover:bg-fill">
+              <X className="size-4" />
+            </button>
+          )}
         </div>
 
         <div className="space-y-6 px-4 pb-8 pt-6 sm:px-6">
@@ -505,13 +495,19 @@ export function UploadFlow({
               <Group title={result.key ? "Private link" : "Share link"} footer={result.key ? "Anyone with this link can open the file. The key after # never reaches a server." : "Anyone with the link can open the file. Their browser verifies every block."}>
                 <div className="break-all px-4 py-3 font-mono text-[12px] text-label-2 [letter-spacing:0]">{link}</div>
                 <div className="flex items-center gap-1 px-2 py-1.5">
-                  <CopyButton text={link} label="Copy Link" className="text-[15px]" />
+                  <CopyButton text={link} label="Copy link" className="text-[15px]" />
                   <a href={link} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 rounded-full px-2 py-1 text-[15px] text-link hover:bg-accent-soft">
                     Open <ArrowUpRight className="size-4" />
                   </a>
                 </div>
               </Group>
             </motion.div>
+          )}
+
+          {phase === "done" && (
+            <Button size="lg" variant="gray" className="w-full" onClick={onClose}>
+              Done
+            </Button>
           )}
 
           {phase === "error" && (

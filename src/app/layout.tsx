@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 
-// SF Pro on Apple devices via the system stack; Inter is the fallback everywhere else.
+// One typeface on every platform, so the product looks the same on Windows, Linux, Android and macOS.
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
