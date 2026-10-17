@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CloudUpload, Plus } from "lucide-react";
+import { CloudUpload, FolderUp, Plus } from "lucide-react";
 import { motion } from "motion/react";
 import { useApi, useBalance } from "@/lib/use-api";
 import { rememberAccount, rememberedAccount, type InjectedAccount } from "@/lib/wallet";
@@ -32,10 +32,12 @@ export function Drive() {
   const [upload, setUpload] = useState<File | null>(null);
   const [over, setOver] = useState(false);
   const [stranded, setStranded] = useState(0);
+  const [folder, setFolder] = useState<{ name: string; files: File[] } | null>(null);
   const [tooBig, setTooBig] = useState<string | null>(null);
   const choose = (f: File) => {
     if (f.size > 64 * 1024 * 1024) return setTooBig(`${f.name} is ${bytes(f.size)}. The Drive takes up to 64 MiB per file.`);
     setTooBig(null);
+    setFolder(null);
     setUpload(f);
   };
 
@@ -116,6 +118,7 @@ export function Drive() {
   const total = useMemo(() => files.reduce((s, f) => s + f.size, 0), [files]);
 
   const picker = useRef<HTMLInputElement>(null);
+  const folderPicker = useRef<HTMLInputElement>(null);
 
   if (!account || picking) {
     return (
@@ -153,6 +156,22 @@ export function Drive() {
           e.target.value = "";
         }}
       />
+      <input
+        ref={folderPicker}
+        type="file"
+        className="sr-only"
+        {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
+        onChange={(e) => {
+          const list = [...(e.target.files ?? [])].filter((f) => !f.name.startsWith("."));
+          e.target.value = "";
+          if (!list.length) return;
+          const total = list.reduce((n, f) => n + f.size, 0);
+          if (total > 64 * 1024 * 1024) return setTooBig(`That folder is ${bytes(total)}. The Drive takes up to 64 MiB per upload.`);
+          setTooBig(null);
+          setFolder({ name: list[0].webkitRelativePath.split("/")[0] || "folder", files: list });
+          setUpload(list[0]);
+        }}
+      />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="headline text-[40px] sm:text-[48px]">Drive</h1>
@@ -171,6 +190,9 @@ export function Drive() {
               setAccount(null);
             }}
           />
+          <Button variant="gray" onClick={() => folderPicker.current?.click()} title="Upload a folder or a built website">
+            <FolderUp className="size-4" /> Folder
+          </Button>
           <Button onClick={() => picker.current?.click()}>
             <Plus className="size-4" strokeWidth={2.5} /> Upload
           </Button>
@@ -226,8 +248,12 @@ export function Drive() {
           account={account}
           balance={simulate ? 5_000n * 10n ** 14n : balance}
           file={upload}
+          folder={folder ?? undefined}
           simulate={simulate}
-          onClose={() => setUpload(null)}
+          onClose={() => {
+            setUpload(null);
+            setFolder(null);
+          }}
           onDone={() => refresh()}
         />
       )}

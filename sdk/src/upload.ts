@@ -7,6 +7,7 @@ import type { Address } from "viem";
 import { contentHash } from "./cid";
 import type { Block } from "./dag";
 import { exists } from "./fetch";
+import { listStored } from "./state";
 import { CHUNK_SIZE, NETWORK } from "./network";
 import type { PreparedFile } from "./prepare";
 import { readFile, registerCalldata, reviveCall } from "./registry";
@@ -37,6 +38,10 @@ export interface Estimate {
   // Worst case the wallet sees leave (budget + registry + keep-alive).
   total: bigint;
   alreadyStored: boolean;
+  // Blocks the chain already holds (from earlier uploads or other files). Not paid again.
+  reused: string[];
+  reusedBytes: number;
+  newBytes: number;
 }
 
 export type UploadEvent =
@@ -81,9 +86,15 @@ export async function estimateUpload(
   owner: string,
   opts: { registry?: Address; keepAlive?: bigint } = {},
 ): Promise<Estimate> {
-  const alreadyStored = await exists(file.root).catch(() => false);
+  // One state query tells us every content hash Portaldot holds right now.
+  const held = new Set((await listStored(api)).map((e) => e.contentHash.toLowerCase()));
+  const reused = file.blocks.filter((b) => held.has(contentHash(b.cid).toLowerCase())).map((b) => b.cid.toString());
+  const alreadyStored = reused.length === file.blocks.length;
+  const fresh = file.blocks.filter((b) => !reused.includes(b.cid.toString()));
   const fee = await feeModel(api, owner);
-  const storeFees = alreadyStored ? 0n : file.blocks.reduce((s, b) => s + fee(b.bytes.length), 0n);
+  const storeFees = fresh.reduce((s, b) => s + fee(b.bytes.length), 0n);
+  const reusedBytes = file.blocks.filter((b) => reused.includes(b.cid.toString())).reduce((s, b) => s + b.bytes.length, 0);
+  const newBytes = fresh.reduce((s, b) => s + b.bytes.length, 0);
   const sweep = BigInt((await api.tx.balances.transferAll(owner, false).paymentInfo(owner)).partialFee.toString());
 
   let registryFee = 0n;
@@ -97,7 +108,7 @@ export async function estimateUpload(
     }
   }
   const budget = alreadyStored ? 0n : (storeFees * 115n) / 100n + sweep * 2n + ED * 2n;
-  return { storeFees, registryFee, registryDeposit, keepAlive, budget, total: budget + registryFee + registryDeposit + keepAlive, alreadyStored };
+  return { storeFees, registryFee, registryDeposit, keepAlive, budget, total: budget + registryFee + registryDeposit + keepAlive, alreadyStored, reused, reusedBytes, newBytes };
 }
 
 function storedIndex(api: ApiPromise, inc: Included): number | undefined {
@@ -135,7 +146,7 @@ export async function uploadFile(opts: UploadOptions): Promise<UploadResult> {
     cid: b.cid.toString(),
     size: b.bytes.length,
     kind: i === file.blocks.length - 1 && file.blocks.length > 1 ? "root" : "chunk",
-    status: estimate.alreadyStored ? "skipped" : "queued",
+    status: estimate.reused.includes(b.cid.toString()) ? "skipped" : "queued",
   }));
   blocks.forEach((block) => emit({ type: "block", block }));
 
@@ -163,7 +174,8 @@ export async function uploadFile(opts: UploadOptions): Promise<UploadResult> {
 
   if (!estimate.alreadyStored) {
     emit({ type: "stage", stage: "store" });
-    await storeBlocks(api, key, file.blocks, blocks, opts.concurrency ?? 4, emit);
+    const todo = file.blocks.map((b, i) => ({ b, i })).filter(({ i }) => blocks[i].status !== "skipped");
+    await storeBlocks(api, key, todo.map((t) => t.b), todo.map((t) => blocks[t.i]), opts.concurrency ?? 4, emit);
 
     emit({ type: "stage", stage: "verify" });
     const t = performance.now();

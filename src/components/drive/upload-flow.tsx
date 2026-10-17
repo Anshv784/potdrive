@@ -36,6 +36,7 @@ export function UploadFlow({
   account,
   balance,
   file,
+  folder,
   simulate,
   onClose,
   onDone,
@@ -44,10 +45,14 @@ export function UploadFlow({
   account: InjectedAccount;
   balance: bigint | null;
   file: File;
+  // When set, `file` is the first file and the upload is a whole folder (UnixFS directory).
+  folder?: { name: string; files: File[] };
   simulate?: boolean;
   onClose: () => void;
   onDone: (r: UploadResult, f: PreparedFile) => void;
 }) {
+  const displayName = folder?.name ?? file.name;
+  const displaySize = folder ? folder.files.reduce((n, f) => n + f.size, 0) : file.size;
   const [phase, setPhase] = useState<Phase>("preparing");
   const [isPrivate, setPrivate] = useState(false);
   const [periods, setPeriods] = useState(0);
@@ -69,8 +74,21 @@ export function UploadFlow({
     setEstimate(null);
     (async () => {
       const { prepareFile } = await import("@potdrive/sdk/prepare");
-      const data = new Uint8Array(await file.arrayBuffer());
-      const p = await prepareFile(data, { name: file.name, mime: file.type, private: isPrivate });
+      let p: PreparedFile;
+      if (folder) {
+        const { prepareFolder } = await import("@potdrive/sdk/prepare");
+        const entries = await Promise.all(
+          folder.files.map(async (f) => ({
+            // "site/assets/app.js" -> "assets/app.js"
+            path: (f.webkitRelativePath || f.name).split("/").slice(folder.files[0].webkitRelativePath ? 1 : 0).join("/"),
+            bytes: new Uint8Array(await f.arrayBuffer()),
+          })),
+        );
+        p = await prepareFolder(entries, { name: folder.name });
+      } else {
+        const data = new Uint8Array(await file.arrayBuffer());
+        p = await prepareFile(data, { name: file.name, mime: file.type, private: isPrivate });
+      }
       if (!live) return;
       setPrepared(p);
       setPhase("review");
@@ -83,7 +101,7 @@ export function UploadFlow({
     return () => {
       live = false;
     };
-  }, [file, isPrivate]);
+  }, [file, folder, isPrivate]);
 
   // estimate base fees once per prepared file
   const [base, setBase] = useState<Estimate | null>(null);
@@ -162,9 +180,9 @@ export function UploadFlow({
       }
       saveLocalFile({
         root: r.root,
-        name: file.name,
-        mime: file.type || "application/octet-stream",
-        size: file.size,
+        name: displayName,
+        mime: folder ? "inode/directory" : file.type || "application/octet-stream",
+        size: displaySize,
         storedBytes: prepared.storedBytes,
         blocks: prepared.blocks.length,
         key: r.key,
@@ -182,7 +200,11 @@ export function UploadFlow({
     }
   };
 
-  const link = result ? `${SITE}/f/${result.root}${isPrivate ? "" : `?name=${encodeURIComponent(file.name)}`}${result.key ? `#k=${result.key}` : ""}` : "";
+  const link = !result
+    ? ""
+    : folder
+      ? `${SITE}/ipfs/${result.root}/`
+      : `${SITE}/f/${result.root}${isPrivate ? "" : `?name=${encodeURIComponent(file.name)}`}${result.key ? `#k=${result.key}` : ""}`;
 
 
   const done = blocks.filter((b) => b.status === "inBlock" || b.status === "finalized" || b.status === "skipped").length;
@@ -220,10 +242,11 @@ export function UploadFlow({
         <div className="space-y-6 px-4 pb-8 pt-6 sm:px-6">
           {/* file */}
           <div className="flex flex-col items-center text-center">
-            <DocIcon type={isPrivate ? "LOCK" : mimeLabel(file.type, file.name)} size={56} />
-            <div className="mt-3 max-w-full truncate text-[17px] font-semibold">{file.name}</div>
+            <DocIcon type={folder ? "DIR" : isPrivate ? "LOCK" : mimeLabel(file.type, file.name)} size={56} />
+            <div className="mt-3 max-w-full truncate text-[17px] font-semibold">{displayName}</div>
             <div className="text-[13px] text-label-2 tabular">
-              {bytes(file.size)}
+              {folder && `${folder.files.length} files · `}
+              {bytes(displaySize)}
               {prepared && ` · ${prepared.blocks.length} block${prepared.blocks.length === 1 ? "" : "s"} on chain`}
             </div>
           </div>
@@ -233,7 +256,7 @@ export function UploadFlow({
               <motion.div key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="space-y-6">
                 <Group footer="Sealed with AES-256-GCM in this tab. The chain sees only ciphertext; name and type are hidden too. The key goes in the share link after the #.">
                   <Row label={<span className="inline-flex items-center gap-2"><Lock className="size-4 text-label-2" />Private file</span>}>
-                    <Switch checked={isPrivate} onChange={setPrivate} label="Private file" />
+                    <Switch checked={isPrivate} onChange={setPrivate} label="Private file" disabled={!!folder} />
                   </Row>
                 </Group>
 
@@ -264,6 +287,12 @@ export function UploadFlow({
 
                 {estimate?.alreadyStored && (
                   <div className="rounded-xl bg-green-soft px-4 py-3 text-[15px]">This exact file is already on Portaldot. Nothing new is stored; you only {REGISTRY ? "claim the record" : "get the link"}.</div>
+                )}
+                {estimate && !estimate.alreadyStored && estimate.reused.length > 0 && (
+                  <Group gray={false} title="Deduplication" footer="Content-defined chunking found blocks Portaldot already holds, from an earlier version or another file. They are linked, not stored again.">
+                    <Row label="Already on Portaldot" sub={`${estimate.reused.length} of ${prepared?.blocks.length} blocks`} detail={bytes(estimate.reusedBytes)} />
+                    <Row label="New data to store" detail={bytes(estimate.newBytes)} />
+                  </Group>
                 )}
                 {short && (
                   <div className="rounded-xl bg-orange-soft px-4 py-3 text-[15px]">

@@ -8,6 +8,7 @@ import { NETWORK } from "@potdrive/sdk/network";
 import type { StoredEntry } from "@potdrive/sdk/state";
 import { bytes, duration, num } from "@/lib/format";
 import { FileCard } from "../drive/file-card";
+import { ProofMonitor } from "./proofs";
 
 interface RegFile {
   root: string;
@@ -114,6 +115,8 @@ export function Explore() {
           {data && data.entries.length === 0 && <div className="absolute inset-x-0 top-6 text-center text-[15px] text-label-2">Nothing is stored on Portaldot right now.</div>}
         </div>
       </section>
+
+      <ProofMonitor />
 
       {data?.registry && data.registry.files.length > 0 && (
         <section className="mt-14">

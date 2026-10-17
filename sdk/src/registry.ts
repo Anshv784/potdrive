@@ -3,7 +3,7 @@ import type { SubmittableExtrinsic } from "@polkadot/api/types";
 import { createPublicClient, defineChain, encodeFunctionData, http, type Address, type Hex } from "viem";
 import { registryAbi } from "./abi";
 import { NATIVE_TO_EVM, NETWORK } from "./network";
-import { contentHash } from "./cid";
+import { contentHash, DAG_PB } from "./cid";
 import type { PreparedFile } from "./prepare";
 
 export const portaldot = defineChain({
@@ -123,7 +123,8 @@ export async function evmAddressOf(api: ApiPromise, ss58: string): Promise<Addre
 }
 
 export function registerCalldata(file: PreparedFile): Hex {
-  const chunks = file.blocks.length > 1 ? file.blocks.length - 1 : 1;
+  // Readers derive the codec from this: >1 means a dag-pb root (file or directory).
+  const chunks = file.root.code === DAG_PB ? Math.max(2, file.blocks.length) : 1;
   return encodeFunctionData({
     abi: registryAbi,
     functionName: "register",

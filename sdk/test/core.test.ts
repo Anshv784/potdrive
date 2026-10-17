@@ -47,8 +47,15 @@ describe("dag", () => {
     expect(dag.root.code).toBe(RAW);
   });
 
+  test("identical chunks are stored once", () => {
+    // period-256 data: 1 KiB chunks 1 and 2 are byte-identical
+    const dag = buildFileDag(bytes(2500), 1024);
+    expect(dag.leaves.length).toBe(3);
+    expect(dag.blocks.length).toBe(3);
+  });
+
   test("large file gets a dag-pb root that links every leaf in order", () => {
-    const data = bytes(2500);
+    const data = Uint8Array.from({ length: 2500 }, (_, i) => (i * 2654435761) >>> 24);
     const dag = buildFileDag(data, 1024);
     expect(dag.leaves.length).toBe(3);
     expect(dag.blocks.length).toBe(4);

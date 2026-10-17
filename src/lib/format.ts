@@ -37,6 +37,7 @@ export function num(n: number): string {
 }
 
 export function mimeLabel(mime: string, name = ""): string {
+  if (mime === "inode/directory") return "DIR";
   const ext = name.includes(".") ? name.split(".").pop()!.toUpperCase() : "";
   if (ext && ext.length <= 5) return ext;
   if (!mime) return "FILE";

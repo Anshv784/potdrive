@@ -4,8 +4,10 @@
 //   bun cli/potdrive.ts get <cid> [-o <path>] [--key <k>]
 //   bun cli/potdrive.ts info <cid>
 //   bun cli/potdrive.ts renew <cid>
+//   bun cli/potdrive.ts deploy <dir>        (a folder or built static site)
 //   bun cli/potdrive.ts ls
-import { basename } from "node:path";
+import { basename, join, relative } from "node:path";
+import { readdir } from "node:fs/promises";
 import { Keyring } from "@polkadot/keyring";
 import { cryptoWaitReady } from "@polkadot/util-crypto";
 import type { Address } from "viem";
@@ -22,6 +24,7 @@ import {
   openFile,
   placements,
   prepareFile,
+  prepareFolder,
   renewFile,
   shareUrl,
   uploadFile,
@@ -80,6 +83,7 @@ async function put(path: string) {
     onEvent: (e) => {
       if (e.type === "estimate") {
         row("estimate", `${formatPot(e.estimate.total, 3)} ${NETWORK.symbol} at most${e.estimate.alreadyStored ? " (already on chain)" : ""}`);
+        if (e.estimate.reused.length && !e.estimate.alreadyStored) row("dedup", `${e.estimate.reused.length} block(s), ${kib(e.estimate.reusedBytes)} already on chain, not paid again`);
         if (keepAlive) row("keep", `${weeks} renewal(s) prepaid: ${formatPot(keepAlive, 3)} ${NETWORK.symbol}`);
       }
       if (e.type === "authorized") row("authorized", `${e.tx.hash.slice(0, 10)}… (block #${e.tx.blockNumber.toLocaleString("en-US")})`);
@@ -95,6 +99,47 @@ async function put(path: string) {
   });
   row("link", green(shareUrl(SITE, { root: result.root, key: result.key, name: prepared.private ? undefined : basename(path) })));
   row("cid", result.root);
+}
+
+async function walkDir(dir: string): Promise<string[]> {
+  const out: string[] = [];
+  for (const e of await readdir(dir, { withFileTypes: true })) {
+    if (e.name.startsWith(".")) continue;
+    const p = join(dir, e.name);
+    if (e.isDirectory()) out.push(...(await walkDir(p)));
+    else if (e.isFile()) out.push(p);
+  }
+  return out;
+}
+
+async function deploy(dir: string) {
+  const paths = await walkDir(dir);
+  if (!paths.length) throw new Error(`${dir} has no files`);
+  const entries = await Promise.all(paths.map(async (p) => ({ path: relative(dir, p), bytes: new Uint8Array(await Bun.file(p).arrayBuffer()) })));
+  const prepared = await prepareFolder(entries, { name: basename(dir.replace(/\/$/, "")) });
+  row("prepared", `${entries.length} files · ${kib(prepared.originalBytes)} → ${prepared.blocks.length} unique blocks`);
+  if (!entries.some((e) => e.path === "index.html")) console.log(dim("             no index.html: the gateway will show a directory listing"));
+  const owner = await signer();
+  const api = await connect();
+  const blocks: BlockState[] = [];
+  const result = await uploadFile({
+    api,
+    file: prepared,
+    owner,
+    registry: REGISTRY,
+    onEvent: (e) => {
+      if (e.type === "estimate") {
+        row("estimate", `${formatPot(e.estimate.total, 3)} ${NETWORK.symbol} at most`);
+        if (e.estimate.reused.length) row("dedup", `${e.estimate.reused.length} block(s), ${kib(e.estimate.reusedBytes)} already on chain`);
+      }
+      if (e.type === "block") {
+        blocks[e.block.i] = e.block;
+        if (blocks.filter(Boolean).length === prepared.blocks.length) process.stdout.write(`\r  ${violet("stored".padEnd(10))} ${bar(blocks)}`);
+      }
+      if (e.type === "verified") process.stdout.write("\n");
+    },
+  });
+  row("site", green(`${SITE}/ipfs/${result.root}/`));
 }
 
 async function get(cid: string) {
@@ -149,14 +194,15 @@ async function ls() {
 }
 
 const [cmd, target] = process.argv.slice(2);
-const commands: Record<string, (t: string) => Promise<void>> = { put, get, info, renew, ls: () => ls() };
+const commands: Record<string, (t: string) => Promise<void>> = { put, get, info, renew, deploy, ls: () => ls() };
 const run = commands[cmd ?? ""];
 if (!run || (cmd !== "ls" && !target)) {
-  console.log(`potdrive <put|get|info|renew|ls> [target]
+  console.log(`potdrive <put|get|info|renew|deploy|ls> [target]
 
   put <file> [--private] [--keep <weeks>]   store a file (needs POTDRIVE_SEED)
   get <cid> [-o path] [--key k]            fetch, verify every block, save
   info <cid>                               where each block lives and when it expires
+  deploy <dir>                             store a folder or static site, print its URL
   renew <cid>                              extend every block by ${NETWORK.retentionBlocks} blocks
   ls                                       everything TransactionStorage holds`);
   process.exit(1);

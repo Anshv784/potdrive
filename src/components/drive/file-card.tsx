@@ -24,11 +24,12 @@ export function expiryTone(expiresAt: number | undefined, head: number | null) {
 }
 
 export function FileCard({ f, head }: { f: CardFile; head: number | null; index?: number }) {
-  const href = `/f/${f.root}${f.name && !f.isPrivate ? `?name=${encodeURIComponent(f.name)}` : ""}${f.key ? `#k=${f.key}` : ""}`;
+  const dir = f.mime === "inode/directory";
+  const href = dir ? `/ipfs/${f.root}/` : `/f/${f.root}${f.name && !f.isPrivate ? `?name=${encodeURIComponent(f.name)}` : ""}${f.key ? `#k=${f.key}` : ""}`;
   const isImage = f.mime.startsWith("image/") && !f.mime.includes("svg") && !f.isPrivate;
   const { frac, tone } = expiryTone(f.expiresAt, head);
   return (
-    <Link href={href} className="group flex flex-col items-center rounded-2xl p-3 text-center transition-colors duration-200 hover:bg-bg-2">
+    <Link href={href} target={dir ? "_blank" : undefined} prefetch={dir ? false : undefined} className="group flex flex-col items-center rounded-2xl p-3 text-center transition-colors duration-200 hover:bg-bg-2">
       <div className="relative grid h-32 w-full place-items-center">
         {isImage ? (
           // eslint-disable-next-line @next/next/no-img-element

@@ -203,6 +203,14 @@ const TYPE_COLORS: Record<string, string> = {
 
 // A macOS-style document icon with a coloured type label.
 export function DocIcon({ type, size = 56 }: { type: string; size?: number }) {
+  if (type === "DIR") {
+    return (
+      <svg width={size * 1.2} height={size} viewBox="0 0 60 50" aria-hidden>
+        <path d="M4 8a4 4 0 0 1 4-4h14l5 5h25a4 4 0 0 1 4 4v29a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z" fill="#1e88f5" />
+        <path d="M4 16a4 4 0 0 1 4-4h44a4 4 0 0 1 4 4v26a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z" fill="#5fb3ff" />
+      </svg>
+    );
+  }
   const t = type.toUpperCase().slice(0, 4);
   const color = TYPE_COLORS[t] ?? "#0071e3";
   return (

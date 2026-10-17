@@ -1,6 +1,7 @@
 export * from "./network";
 export * from "./cid";
 export * from "./dag";
+export * from "./cdc";
 export * from "./envelope";
 export * from "./prepare";
 export * from "./rpc";

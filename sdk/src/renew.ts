@@ -1,30 +1,39 @@
 import type { ApiPromise } from "@polkadot/api";
 import type { CID } from "multiformats/cid";
-import { cidFor, contentHash, DAG_PB, parseCid } from "./cid";
-import { decodeRoot } from "./dag";
+import { contentHash, DAG_PB, parseCid } from "./cid";
+import { decodeNode } from "./dag";
 import { getBlock } from "./fetch";
 import { listStored, locate, type StoredEntry } from "./state";
 import { send, type Account } from "./tx";
 
 export interface Placement {
   cid: string;
-  kind: "chunk" | "root";
+  kind: "chunk" | "root" | "dir";
   entry?: StoredEntry;
 }
 
-// Every block a file is made of, and where the chain currently holds each one.
-export async function placements(api: ApiPromise, root: CID | string, entries?: StoredEntry[]): Promise<Placement[]> {
+// Every block under a root (directories, file roots, leaves), deduplicated, leaves first.
+export async function walk(root: CID | string, url?: string): Promise<{ cid: CID; kind: Placement["kind"] }[]> {
   const r = typeof root === "string" ? parseCid(root) : root;
-  const all = entries ?? (await listStored(api));
-  const cids: { cid: CID; kind: Placement["kind"] }[] = [];
-  if (r.code === DAG_PB) {
-    const bytes = await getBlock(r);
-    cids.push(...decodeRoot(bytes).links.map((l) => ({ cid: l.cid, kind: "chunk" as const })));
-    cids.push({ cid: cidFor(bytes, DAG_PB), kind: "root" });
-  } else {
-    cids.push({ cid: r, kind: "chunk" });
-  }
-  return cids.map(({ cid, kind }) => ({ cid: cid.toString(), kind, entry: locate(all, contentHash(cid)) }));
+  const out = new Map<string, { cid: CID; kind: Placement["kind"] }>();
+  const visit = async (c: CID, kind: Placement["kind"]) => {
+    if (out.has(c.toString())) return;
+    if (c.code === DAG_PB) {
+      const node = decodeNode(await getBlock(c, url));
+      for (const l of node.links) await visit(l.cid, node.kind === "directory" ? (l.cid.code === DAG_PB ? "root" : "chunk") : "chunk");
+      out.set(c.toString(), { cid: c, kind: node.kind === "directory" ? "dir" : kind });
+    } else {
+      out.set(c.toString(), { cid: c, kind: kind === "root" ? "chunk" : kind });
+    }
+  };
+  await visit(r, r.code === DAG_PB ? "root" : "chunk");
+  return [...out.values()];
+}
+
+// Every block a file or folder is made of, and where the chain currently holds each one.
+export async function placements(api: ApiPromise, root: CID | string, entries?: StoredEntry[]): Promise<Placement[]> {
+  const [all, blocks] = await Promise.all([entries ?? listStored(api), walk(root)]);
+  return blocks.map(({ cid, kind }) => ({ cid: cid.toString(), kind, entry: locate(all, contentHash(cid)) }));
 }
 
 export function expiresAt(ps: Placement[]): number | undefined {

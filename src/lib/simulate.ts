@@ -19,6 +19,9 @@ export function fakeEstimate(file: PreparedFile, keepAlive: bigint): Estimate {
     budget,
     total: budget + 61_000_000_000_000n + keepAlive,
     alreadyStored: false,
+    reused: [],
+    reusedBytes: 0,
+    newBytes: file.storedBytes,
   };
 }
 

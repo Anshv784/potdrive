@@ -18,7 +18,17 @@ const EXT: Record<string, string> = {
   md: "text/markdown; charset=utf-8",
   json: "application/json",
   csv: "text/csv; charset=utf-8",
-  html: "text/plain; charset=utf-8",
+  html: "text/html; charset=utf-8",
+  htm: "text/html; charset=utf-8",
+  css: "text/css; charset=utf-8",
+  js: "text/javascript; charset=utf-8",
+  mjs: "text/javascript; charset=utf-8",
+  wasm: "application/wasm",
+  woff2: "font/woff2",
+  woff: "font/woff",
+  ico: "image/x-icon",
+  xml: "application/xml",
+  webmanifest: "application/manifest+json",
   zip: "application/zip",
 };
 
