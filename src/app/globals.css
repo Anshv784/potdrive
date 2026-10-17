@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+:root {
+  /* The vault: ink desk, paper records, Portaldot violet as the stamp. */
+  --ink: #0f0e13;
+  --ink-2: #15141b;
+  --ink-3: #1c1b23;
+  --line: #2a2832;
+  --line-2: #3a3743;
+  --text: #ece8e1;
+  --text-2: #a9a4b2;
+  --text-3: #6f6a7a;
+
+  --paper: #efe9dd;
+  --paper-2: #e6dfd0;
+  --paper-ink: #1b1a20;
+  --paper-mute: #6d665a;
+  --paper-line: #d6ccba;
+
+  --violet: #7b5cff;
+  --violet-2: #9a83ff;
+  --violet-soft: rgb(123 92 255 / 0.14);
+  --blue: #3d8bff;
+
+  --ok: #6fcf97;
+  --ok-soft: rgb(111 207 151 / 0.14);
+  --warn: #e8b04b;
+  --warn-soft: rgb(232 176 75 / 0.14);
+  --bad: #e5645b;
+  --bad-soft: rgb(229 100 91 / 0.14);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-paper-ink: var(--paper-ink);
+  --color-paper-mute: var(--paper-mute);
+  --color-paper-line: var(--paper-line);
+  --color-violet: var(--violet);
+  --color-violet-2: var(--violet-2);
+  --color-violet-soft: var(--violet-soft);
+  --color-blue: var(--blue);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+
+  --font-sans: var(--font-geist);
+  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-instrument);
+
+  --ease-out: var(--ease-out);
+}
+
+html {
+  background: var(--ink);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background: var(--ink);
+  font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  min-height: 100dvh;
+}
+
+::selection {
+  background: var(--violet);
+  color: white;
+}
+
+:focus-visible {
+  outline: 2px solid var(--violet-2);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Fine paper grain for record cards. */
+.paper {
+  background-color: var(--paper);
+  color: var(--paper-ink);
+  background-image:
+    radial-gradient(rgb(0 0 0 / 0.035) 1px, transparent 1px),
+    radial-gradient(rgb(0 0 0 / 0.025) 1px, transparent 1px);
+  background-size: 3px 3px, 7px 7px;
+  background-position: 0 0, 1px 2px;
+}
+
+/* Faint ruled desk behind hero sections. */
+.desk {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.028) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.stamp {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes pd-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.live-dot {
+  animation: pd-pulse 2s var(--ease-in-out) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Long-form docs. */
+.prose-doc h2 { font-family: var(--font-instrument); font-size: 2rem; line-height: 1.1; margin: 3rem 0 1rem; color: var(--text); }
+.prose-doc h3 { font-weight: 600; font-size: 1.05rem; margin: 2rem 0 0.6rem; color: var(--text); }
+.prose-doc p, .prose-doc li { color: var(--text-2); line-height: 1.7; }
+.prose-doc p { margin: 0.8rem 0; }
+.prose-doc ul { list-style: disc; padding-left: 1.25rem; margin: 0.8rem 0; }
+.prose-doc li { margin: 0.3rem 0; }
+.prose-doc a { color: var(--violet-2); text-decoration: underline; text-underline-offset: 3px; }
+.prose-doc code:not(pre code) { font-family: var(--font-geist-mono); font-size: 0.85em; background: var(--ink-3); border: 1px solid var(--line); padding: 0.1em 0.35em; border-radius: 4px; color: var(--text); }
+.prose-doc table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+.prose-doc th, .prose-doc td { text-align: left; padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--line); color: var(--text-2); vertical-align: top; }
+.prose-doc th { color: var(--text); font-weight: 500; }

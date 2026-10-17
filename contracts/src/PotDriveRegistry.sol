@@ -4,31 +4,30 @@ pragma solidity ^0.8.28;
 /// @title PotDrive registry
 /// @notice Ownership and keep-alive index for files stored with Portaldot's native
 /// TransactionStorage pallet. The bytes live in the chain's indexed transactions and are
-/// served over IPFS bitswap; this contract records who owns which root, and holds
-/// prepaid POT that the keeper spends to renew files before the chain drops them.
-/// @dev Files are keyed by the root's 32-byte blake2b-256 content hash, the same value
-/// TransactionStorage writes into TransactionInfo.content_hash.
+/// served over IPFS bitswap; this contract records who owns which root and holds prepaid
+/// POT the keeper spends to renew files before the chain drops them.
+/// @dev Revive charges a storage deposit per byte, so a record is two packed slots and
+/// names, types and listings live in event logs, which cost no deposit.
+/// Files are keyed by the root's blake2b-256 content hash (TransactionInfo.content_hash).
 contract PotDriveRegistry {
     /// @dev TransactionStorage.RetentionPeriod on Portaldot V3 (blocks).
     uint32 public constant RETENTION = 100_800;
 
+    uint8 private constant PRIVATE = 1;
+    uint8 private constant UNLISTED = 2;
+
     struct File {
-        address owner;
+        address owner; // slot 0
         uint64 size;
-        uint32 chunks;
+        uint8 flags;
+        uint32 chunks; // slot 1
         uint32 storedAt;
         uint32 expiresAt;
-        bool isPrivate;
-        bool listed;
-        string name;
-        string mime;
+        uint128 keepAlive;
     }
 
     mapping(bytes32 => File) private _files;
-    mapping(bytes32 => uint256) public keepAlive;
-    mapping(address => bytes32[]) private _owned;
-    bytes32[] private _all;
-
+    uint256 public count;
     address public admin;
     address public keeper;
 
@@ -56,8 +55,9 @@ contract PotDriveRegistry {
     }
 
     modifier onlyOwnerOf(bytes32 root) {
-        if (_files[root].owner == address(0)) revert UnknownFile();
-        if (_files[root].owner != msg.sender) revert NotOwner();
+        address owner = _files[root].owner;
+        if (owner == address(0)) revert UnknownFile();
+        if (owner != msg.sender) revert NotOwner();
         _;
     }
 
@@ -72,28 +72,23 @@ contract PotDriveRegistry {
         _files[root] = File({
             owner: msg.sender,
             size: size,
+            flags: isPrivate ? PRIVATE | UNLISTED : 0,
             chunks: chunks,
             storedAt: nowBlock,
             expiresAt: nowBlock + RETENTION,
-            isPrivate: isPrivate,
-            listed: !isPrivate,
-            name: name,
-            mime: mime
+            keepAlive: uint128(msg.value)
         });
-        _owned[msg.sender].push(root);
-        _all.push(root);
+        count++;
         emit Registered(root, msg.sender, size, chunks, isPrivate, name, mime);
-        if (msg.value > 0) {
-            keepAlive[root] = msg.value;
-            emit Funded(root, msg.sender, msg.value, msg.value);
-        }
+        if (msg.value > 0) emit Funded(root, msg.sender, msg.value, msg.value);
     }
 
     /// @notice Anyone can top up a file's keep-alive balance, not only its owner.
     function fund(bytes32 root) external payable {
-        if (_files[root].owner == address(0)) revert UnknownFile();
-        uint256 balance = keepAlive[root] + msg.value;
-        keepAlive[root] = balance;
+        File storage f = _files[root];
+        if (f.owner == address(0)) revert UnknownFile();
+        uint128 balance = f.keepAlive + uint128(msg.value);
+        f.keepAlive = balance;
         emit Funded(root, msg.sender, msg.value, balance);
     }
 
@@ -102,9 +97,8 @@ contract PotDriveRegistry {
         if (msg.sender != keeper) revert NotKeeper();
         File storage f = _files[root];
         if (f.owner == address(0)) revert UnknownFile();
-        uint256 balance = keepAlive[root];
-        if (cost > balance) revert InsufficientKeepAlive();
-        keepAlive[root] = balance - cost;
+        if (cost > f.keepAlive) revert InsufficientKeepAlive();
+        f.keepAlive -= uint128(cost);
         if (expiresAt > f.expiresAt) f.expiresAt = expiresAt;
         emit Renewed(root, f.expiresAt, cost, msg.sender);
         _send(msg.sender, cost);
@@ -112,20 +106,20 @@ contract PotDriveRegistry {
 
     /// @notice Stop keeping a file alive and take back what is left.
     function withdraw(bytes32 root) external onlyOwnerOf(root) {
-        uint256 amount = keepAlive[root];
-        keepAlive[root] = 0;
+        uint256 amount = _files[root].keepAlive;
+        _files[root].keepAlive = 0;
         emit Withdrawn(root, msg.sender, amount);
         _send(msg.sender, amount);
     }
 
     function transfer(bytes32 root, address to) external onlyOwnerOf(root) {
         _files[root].owner = to;
-        _owned[to].push(root);
         emit Transferred(root, msg.sender, to);
     }
 
     function setListed(bytes32 root, bool listed) external onlyOwnerOf(root) {
-        _files[root].listed = listed;
+        File storage f = _files[root];
+        f.flags = listed ? f.flags & ~UNLISTED : f.flags | UNLISTED;
         emit Listed(root, listed);
     }
 
@@ -135,47 +129,14 @@ contract PotDriveRegistry {
         emit KeeperChanged(keeper_);
     }
 
-    // ---- views ----
-
-    function fileOf(bytes32 root) external view returns (File memory) {
-        return _files[root];
-    }
-
-    function count() external view returns (uint256) {
-        return _all.length;
-    }
-
-    /// @notice Roots currently owned by `owner` (transferred-away roots are filtered out).
-    function filesOf(address owner) external view returns (bytes32[] memory roots, File[] memory files) {
-        bytes32[] storage all = _owned[owner];
-        uint256 n;
-        for (uint256 i = 0; i < all.length; i++) if (_files[all[i]].owner == owner) n++;
-        roots = new bytes32[](n);
-        files = new File[](n);
-        uint256 j;
-        for (uint256 i = 0; i < all.length; i++) {
-            if (_files[all[i]].owner == owner) {
-                roots[j] = all[i];
-                files[j] = _files[all[i]];
-                j++;
-            }
-        }
-    }
-
-    /// @notice Newest first. Includes unlisted files; callers filter on `listed`.
-    function page(uint256 offset, uint256 limit) external view returns (bytes32[] memory roots, File[] memory files, uint256[] memory balances) {
-        uint256 total = _all.length;
-        if (offset >= total) return (roots, files, balances);
-        uint256 n = total - offset < limit ? total - offset : limit;
-        roots = new bytes32[](n);
-        files = new File[](n);
-        balances = new uint256[](n);
-        for (uint256 i = 0; i < n; i++) {
-            bytes32 r = _all[total - 1 - offset - i];
-            roots[i] = r;
-            files[i] = _files[r];
-            balances[i] = keepAlive[r];
-        }
+    /// @return owner, size, chunks, storedAt, expiresAt, keepAlive (wei), isPrivate, listed
+    function fileOf(bytes32 root)
+        external
+        view
+        returns (address, uint64, uint32, uint32, uint32, uint256, bool, bool)
+    {
+        File storage f = _files[root];
+        return (f.owner, f.size, f.chunks, f.storedAt, f.expiresAt, f.keepAlive, f.flags & PRIVATE != 0, f.flags & UNLISTED == 0);
     }
 
     function _send(address to, uint256 amount) private {

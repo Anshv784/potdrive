@@ -29,24 +29,42 @@ contract PotDriveRegistryTest {
         require(a == b, "not equal");
     }
 
+    function _owner(bytes32 r) internal view returns (address o) {
+        (o,,,,,,,) = reg.fileOf(r);
+    }
+
+    function _keep(bytes32 r) internal view returns (uint256 k) {
+        (,,,,, k,,) = reg.fileOf(r);
+    }
+
     function test_registerSetsOwnerAndExpiry() public {
         vm.prank(alice);
         reg.register{value: 3 ether}(ROOT, 2_000_000, 3, false, "deck.pdf", "application/pdf");
-        PotDriveRegistry.File memory f = reg.fileOf(ROOT);
-        require(f.owner == alice, "owner");
-        _eq(f.size, 2_000_000);
-        _eq(f.chunks, 3);
-        _eq(f.storedAt, 1000);
-        _eq(f.expiresAt, 1000 + reg.RETENTION());
-        require(f.listed, "public files listed");
-        _eq(reg.keepAlive(ROOT), 3 ether);
+        (address owner, uint64 size, uint32 chunks, uint32 storedAt, uint32 expiresAt, uint256 keep, bool priv, bool listed) = reg.fileOf(ROOT);
+        require(owner == alice, "owner");
+        _eq(size, 2_000_000);
+        _eq(chunks, 3);
+        _eq(storedAt, 1000);
+        _eq(expiresAt, 1000 + reg.RETENTION());
+        _eq(keep, 3 ether);
+        require(!priv && listed, "public + listed");
         _eq(reg.count(), 1);
     }
 
     function test_privateFilesUnlistedByDefault() public {
         vm.prank(alice);
         reg.register(ROOT, 10, 1, true, "", "application/octet-stream");
-        require(!reg.fileOf(ROOT).listed, "private unlisted");
+        (,,,,,, bool priv, bool listed) = reg.fileOf(ROOT);
+        require(priv && !listed, "private unlisted");
+    }
+
+    function test_setListedTogglesOnlyListingBit() public {
+        vm.prank(alice);
+        reg.register(ROOT, 10, 1, true, "", "x");
+        vm.prank(alice);
+        reg.setListed(ROOT, true);
+        (,,,,,, bool priv, bool listed) = reg.fileOf(ROOT);
+        require(priv && listed, "still private, now listed");
     }
 
     function test_cannotRegisterTwice() public {
@@ -73,8 +91,9 @@ contract PotDriveRegistryTest {
         vm.prank(keeper);
         reg.renewed(ROOT, next, 2 ether);
         _eq(keeper.balance - before, 2 ether);
-        _eq(reg.keepAlive(ROOT), 3 ether);
-        _eq(reg.fileOf(ROOT).expiresAt, 1000 + 2 * reg.RETENTION());
+        _eq(_keep(ROOT), 3 ether);
+        (,,,, uint32 expiresAt,,,) = reg.fileOf(ROOT);
+        _eq(expiresAt, next);
     }
 
     function test_onlyKeeperRenews() public {
@@ -103,30 +122,17 @@ contract PotDriveRegistryTest {
         vm.prank(alice);
         reg.withdraw(ROOT);
         _eq(alice.balance - before, 4 ether);
-        _eq(reg.keepAlive(ROOT), 0);
+        _eq(_keep(ROOT), 0);
     }
 
-    function test_transferMovesListing() public {
+    function test_transferChangesOwner() public {
         vm.prank(alice);
         reg.register(ROOT, 10, 1, false, "a", "b");
         vm.prank(alice);
         reg.transfer(ROOT, bob);
-        (bytes32[] memory a,) = reg.filesOf(alice);
-        (bytes32[] memory b,) = reg.filesOf(bob);
-        _eq(a.length, 0);
-        _eq(b.length, 1);
-        require(b[0] == ROOT, "bob owns");
-    }
-
-    function test_pageIsNewestFirst() public {
-        for (uint256 i = 0; i < 5; i++) {
-            vm.prank(alice);
-            reg.register(bytes32(i + 1), 10, 1, false, "a", "b");
-        }
-        (bytes32[] memory roots,,) = reg.page(1, 2);
-        _eq(roots.length, 2);
-        require(roots[0] == bytes32(uint256(4)) && roots[1] == bytes32(uint256(3)), "order");
-        (bytes32[] memory none,,) = reg.page(10, 2);
-        _eq(none.length, 0);
+        require(_owner(ROOT) == bob, "bob owns");
+        vm.prank(alice);
+        vm.expectRevert(PotDriveRegistry.NotOwner.selector);
+        reg.transfer(ROOT, alice);
     }
 }

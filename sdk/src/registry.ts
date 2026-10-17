@@ -27,55 +27,93 @@ export interface RegistryFile {
   name: string;
   mime: string;
   keepAlive?: bigint;
+  registeredIn?: number;
 }
 
-type RawFile = {
-  owner: Address;
-  size: bigint;
-  chunks: number;
-  storedAt: number;
-  expiresAt: number;
-  isPrivate: boolean;
-  listed: boolean;
-  name: string;
-  mime: string;
-};
+type Tuple = readonly [Address, bigint, number, number, number, bigint, boolean, boolean];
 
-const toFile = (root: Hex, f: RawFile, keepAlive?: bigint): RegistryFile => ({
-  root,
-  owner: f.owner,
-  size: Number(f.size),
-  chunks: Number(f.chunks),
-  storedAt: Number(f.storedAt),
-  expiresAt: Number(f.expiresAt),
-  isPrivate: f.isPrivate,
-  listed: f.listed,
-  name: f.name,
-  mime: f.mime,
-  keepAlive,
-});
+const ZERO = /^0x0+$/;
+
+async function state(registry: Address, root: Hex): Promise<Tuple> {
+  return (await evm.readContract({ address: registry, abi: registryAbi, functionName: "fileOf", args: [root] })) as Tuple;
+}
+
+function merge(root: Hex, t: Tuple, meta: { name: string; mime: string; block?: number }): RegistryFile {
+  const [owner, size, chunks, storedAt, expiresAt, keepAlive, isPrivate, listed] = t;
+  return {
+    root,
+    owner,
+    size: Number(size),
+    chunks: Number(chunks),
+    storedAt: Number(storedAt),
+    expiresAt: Number(expiresAt),
+    isPrivate,
+    listed,
+    name: meta.name,
+    mime: meta.mime,
+    keepAlive,
+    registeredIn: meta.block,
+  };
+}
+
+// Revive keeps the index cheap by putting names, types and listings in logs.
+const registeredEvent = registryAbi.find((x) => x.type === "event" && x.name === "Registered")!;
+const transferredEvent = registryAbi.find((x) => x.type === "event" && x.name === "Transferred")!;
+
+export const REGISTRY_FROM_BLOCK = BigInt(Number(process.env.NEXT_PUBLIC_REGISTRY_BLOCK ?? process.env.POTDRIVE_REGISTRY_BLOCK ?? 0));
+
+async function logs<T>(registry: Address, event: typeof registeredEvent | typeof transferredEvent, args?: Record<string, unknown>) {
+  const latest = await evm.getBlockNumber();
+  const out: T[] = [];
+  const step = 10_000n;
+  for (let from = REGISTRY_FROM_BLOCK; from <= latest; from += step) {
+    const to = from + step - 1n > latest ? latest : from + step - 1n;
+    const page = await evm.getLogs({ address: registry, event: event as never, args: args as never, fromBlock: from, toBlock: to });
+    out.push(...(page as unknown as T[]));
+  }
+  return out;
+}
+
+interface RegLog {
+  args: { root: Hex; owner: Address; name: string; mime: string };
+  blockNumber: bigint;
+}
+
+async function registrations(registry: Address, owner?: Address): Promise<RegLog[]> {
+  return logs<RegLog>(registry, registeredEvent, owner ? { owner } : undefined);
+}
 
 export async function readFile(registry: Address, root: Hex): Promise<RegistryFile | null> {
-  const [f, balance] = await Promise.all([
-    evm.readContract({ address: registry, abi: registryAbi, functionName: "fileOf", args: [root] }) as Promise<RawFile>,
-    evm.readContract({ address: registry, abi: registryAbi, functionName: "keepAlive", args: [root] }) as Promise<bigint>,
-  ]);
-  if (/^0x0+$/.test(f.owner)) return null;
-  return toFile(root, f, balance);
+  const t = await state(registry, root);
+  if (ZERO.test(t[0])) return null;
+  const reg = (await logs<RegLog>(registry, registeredEvent).catch(() => [])).find((l) => l.args.root.toLowerCase() === root.toLowerCase());
+  return merge(root, t, { name: reg?.args.name ?? "", mime: reg?.args.mime ?? "", block: reg ? Number(reg.blockNumber) : undefined });
 }
 
 export async function readOwned(registry: Address, owner: Address): Promise<RegistryFile[]> {
-  const [roots, files] = (await evm.readContract({ address: registry, abi: registryAbi, functionName: "filesOf", args: [owner] })) as [Hex[], RawFile[]];
-  return roots.map((r, i) => toFile(r, files[i])).reverse();
+  const [mine, incoming, all] = await Promise.all([
+    registrations(registry, owner),
+    logs<{ args: { root: Hex } }>(registry, transferredEvent, { to: owner }),
+    registrations(registry),
+  ]);
+  const meta = new Map(all.map((l) => [l.args.root.toLowerCase(), l]));
+  const roots = [...new Set([...mine.map((l) => l.args.root), ...incoming.map((l) => l.args.root)])];
+  const files = await Promise.all(
+    roots.map(async (root) => {
+      const m = meta.get(root.toLowerCase());
+      return merge(root, await state(registry, root), { name: m?.args.name ?? "", mime: m?.args.mime ?? "", block: m ? Number(m.blockNumber) : undefined });
+    }),
+  );
+  return files.filter((f) => f.owner.toLowerCase() === owner.toLowerCase()).sort((a, b) => b.storedAt - a.storedAt);
 }
 
 export async function readPage(registry: Address, offset = 0, limit = 50): Promise<{ files: RegistryFile[]; total: number }> {
-  const [page, total] = await Promise.all([
-    evm.readContract({ address: registry, abi: registryAbi, functionName: "page", args: [BigInt(offset), BigInt(limit)] }) as Promise<[Hex[], RawFile[], bigint[]]>,
-    evm.readContract({ address: registry, abi: registryAbi, functionName: "count" }) as Promise<bigint>,
-  ]);
-  const [roots, files, balances] = page;
-  return { files: roots.map((r, i) => toFile(r, files[i], balances[i])), total: Number(total) };
+  const all = (await registrations(registry)).reverse();
+  const slice = all.slice(offset, offset + limit);
+  const files = await Promise.all(
+    slice.map(async (l) => merge(l.args.root, await state(registry, l.args.root), { name: l.args.name, mime: l.args.mime, block: Number(l.blockNumber) })),
+  );
+  return { files, total: all.length };
 }
 
 // ---- writes, sent as native revive.call extrinsics so one Polkadot wallet does everything ----

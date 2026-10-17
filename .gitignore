@@ -11,3 +11,4 @@ contracts/cache
 contracts/broadcast
 keeper/.wrangler
 .DS_Store
+.scratch
