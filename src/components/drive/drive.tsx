@@ -29,7 +29,7 @@ import {
   Send,
   HeartPulse,
 } from "lucide-react";
-import { formatPot, NETWORK } from "@potdrive/sdk/network";
+import { NETWORK } from "@potdrive/sdk/network";
 import { shortCid } from "@potdrive/sdk/cid";
 import { useApi, useBalance } from "@/lib/use-api";
 import { rememberAccount, rememberedAccount, type InjectedAccount } from "@/lib/wallet";
@@ -42,7 +42,7 @@ import { bytes, duration, mimeLabel, num, untilBlock } from "@/lib/format";
 import { useHead } from "../chain-pulse";
 import { CopyButton } from "../code";
 import { Button, DocIcon, Ring } from "../ui";
-import { AccountChip, ConnectCard } from "./connect";
+import { AccountCard, ConnectCard } from "./connect";
 import { expiryTone, type CardFile } from "./file-card";
 import { UploadFlow } from "./upload-flow";
 import { FundSheet, InboxSheet, MintSheet, ShareSheet } from "./actions";
@@ -485,30 +485,17 @@ export function Drive() {
           })}
         </nav>
 
-        <div className="mt-auto space-y-3">
-          <div className="px-1">
-            <div className="flex items-center gap-2 text-[13px] font-medium">
-              <HardDrive className="size-4 text-label-2" /> On Portaldot
-            </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-fill">
-              <div className="h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${Math.min(100, (total / MAX) * 100)}%` }} />
-            </div>
-            <div className="mt-1.5 text-[12px] text-label-2 tabular">
-              {bytes(total)} in {files.length} item{files.length === 1 ? "" : "s"}
-            </div>
-          </div>
-          <div className={`rounded-xl px-3 py-2.5 ${balance === 0n ? "bg-orange-soft" : "bg-fill"}`}>
-            <div className="text-[12px] text-label-2">Balance</div>
-            <div className="text-[15px] font-semibold tabular">{balance === null ? "…" : `${formatPot(balance, 2)} tPOT`}</div>
-            {balance === 0n && (
-              <a href="/docs/quickstart#before" className="mt-1 block text-[12px] leading-snug text-link hover:underline">
-                No test POT yet. How to get it
-              </a>
-            )}
-          </div>
-          <AccountChip
+        <div className="mt-auto">
+          <AccountCard
             account={account}
             balance={balance}
+            head={head ?? null}
+            used={total}
+            files={files.length}
+            expiring={counts.expiring}
+            quota={MAX}
+            hasInbox={!!loadInbox(account.address)}
+            onInbox={() => setSheet({ kind: "inbox" })}
             onSwitch={() => setPicking(true)}
             onDisconnect={() => {
               rememberAccount(null);
