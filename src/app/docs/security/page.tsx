@@ -13,6 +13,7 @@ const threats: [string, string, string][] = [
   ["The upload key is stolen from the tab", "It only holds this upload's budget, for a few blocks, then sweeps.", "Bounded"],
   ["A tab closes mid-upload", "The key is persisted locally and the Drive offers a sweep back to the owner.", "Covered"],
   ["The keeper over-claims", "Capped per file by its own balance. Every claim is a public Renewed event. Owners can withdraw any time.", "Bounded, trusted operator"],
+  ["The gasless relay is abused", "Each authorization is wallet-signed, bound to one upload key and root, with a byte budget and an expiry. Only transactionStorage.store is sponsored.", "Bounded"],
   ["A dishonest RPC misreports expiry or ownership", "Ownership is read from the contract; expiry from chain state via the same RPC.", "Trusts the RPC; a light client fixes this"],
 ];
 

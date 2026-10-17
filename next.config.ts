@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   // Directory URLs under /ipfs need their trailing slash so relative links in stored sites resolve.
   skipTrailingSlashRedirect: true,
+  devIndicators: false,
   turbopack: {
     rules: {
       "*.css": {

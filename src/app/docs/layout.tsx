@@ -1,5 +1,6 @@
 import { Footer, Nav } from "@/components/nav";
 import { SearchButton, Sidebar, Toc } from "@/components/docs/chrome";
+import { GithubIcon } from "@/components/logo";
 
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -10,6 +11,14 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
           <div className="sticky top-20 max-h-[calc(100dvh-6rem)] space-y-6 overflow-y-auto pb-10">
             <SearchButton />
             <Sidebar />
+            <a
+              href="https://github.com/Anshv784/potdrive"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 rounded-lg px-2 py-2 text-[14px] text-label ring-1 ring-sep transition-colors hover:bg-bg-2"
+            >
+              <GithubIcon className="size-4" /> Source on GitHub
+            </a>
           </div>
         </aside>
         <main className="min-w-0 max-w-[760px]">

@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono&display=swap" rel="stylesheet" />
+    <style>
+      * { margin: 0; box-sizing: border-box; }
+      body { width: 1600px; height: 560px; font-family: Inter, sans-serif; color: #1d1d1f; background: #fff; overflow: hidden; }
+      .wrap { position: relative; height: 100%; display: flex; align-items: center; padding: 0 96px; gap: 72px;
+        background:
+          radial-gradient(900px 420px at 88% 20%, rgba(99, 102, 241, 0.16), transparent 60%),
+          radial-gradient(700px 380px at 10% 110%, rgba(10, 132, 255, 0.12), transparent 60%), #fff; }
+      .left { flex: 1; }
+      .brand { display: flex; align-items: center; gap: 18px; font-size: 40px; font-weight: 700; letter-spacing: -0.03em; }
+      .mark { width: 64px; height: 64px; border-radius: 18px; background: linear-gradient(135deg, #5e5ce6, #0a84ff); display: grid; place-items: center; box-shadow: 0 10px 30px rgba(79, 70, 229, 0.35); }
+      h1 { margin-top: 34px; font-size: 76px; line-height: 1.02; font-weight: 700; letter-spacing: -0.035em; }
+      h1 span { color: #4f46e5; }
+      p { margin-top: 22px; font-size: 26px; color: #6e6e73; line-height: 1.35; max-width: 760px; }
+      .card { width: 560px; border-radius: 26px; background: #fff; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.12); outline: 1px solid rgba(0, 0, 0, 0.06); overflow: hidden; }
+      .card .head { padding: 18px 24px; border-bottom: 1px solid rgba(0, 0, 0, 0.08); font-size: 18px; color: #6e6e73; display: flex; justify-content: space-between; }
+      .rows { padding: 16px; }
+      .row { display: flex; align-items: center; gap: 14px; padding: 13px 14px; border-radius: 14px; background: #f5f5f7; margin-bottom: 8px; font-size: 18px; }
+      .dot { width: 24px; height: 24px; border-radius: 99px; display: grid; place-items: center; color: #fff; font-size: 14px; font-weight: 700; }
+      .mono { font-family: "Geist Mono", monospace; color: #6e6e73; font-size: 16px; flex: 1; }
+      .size { color: #86868b; font-size: 15px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="left">
+        <div class="brand">
+          <div class="mark">
+            <svg width="38" height="38" viewBox="0 0 24 24"><path d="M6.5 9.5h11v7.5a1.5 1.5 0 0 1-1.5 1.5H8a1.5 1.5 0 0 1-1.5-1.5z" fill="#fff" /><path d="M6 7.25c0-.83.67-1.5 1.5-1.5h9c.83 0 1.5.67 1.5 1.5V9.5H6z" fill="#fff" opacity=".7" /><rect x="10" y="12.25" width="4" height="1.5" rx=".75" fill="#3b6fe8" /></svg>
+          </div>
+          PotDrive
+        </div>
+        <h1>Storage, built into<br /><span>Portaldot.</span></h1>
+        <p>Files in the chain's own TransactionStorage. FastCDC dedup, IPFS CIDs, one signature, and every byte verified by the reader.</p>
+      </div>
+      <div class="card">
+        <div class="head"><span>field-notes.pdf · 3.40 MiB</span><span>on chain</span></div>
+        <div class="rows">
+          <div class="row"><div class="dot" style="background:#34c759">✓</div><b>Block 1</b><span class="mono">bafk2bzacea4z…dmuy37oc</span><span class="size">586 KiB</span></div>
+          <div class="row"><div class="dot" style="background:#34c759">✓</div><b>Block 2</b><span class="mono">bafk2bzacea6h…3vtltc3k</span><span class="size">712 KiB</span></div>
+          <div class="row"><div class="dot" style="background:#34c759">✓</div><b>Block 3</b><span class="mono">bafk2bzaceao…jzxotgzg</span><span class="size">498 KiB</span></div>
+          <div class="row"><div class="dot" style="background:#4f46e5">✓</div><b>Root</b><span class="mono">bafykbzacebn…bzw2j6ka</span><span class="size">dag-pb</span></div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

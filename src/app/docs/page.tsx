@@ -42,6 +42,11 @@ export default function Overview() {
         </li>
       </ul>
 
+      <figure className="not-prose my-8 overflow-hidden rounded-2xl ring-1 ring-sep">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/shots/drive.jpg" alt="The PotDrive Drive: sections, file list and details panel" className="w-full" />
+      </figure>
+
       <H2 id="architecture">Architecture</H2>
       <ArchitectureDiagram />
 

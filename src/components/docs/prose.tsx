@@ -120,10 +120,17 @@ export function Pager({ href }: { href: string }) {
   );
 }
 
+const SOURCE = "https://github.com/Anshv784/potdrive/blob/main/src/app";
+
 export function Doc({ href, children }: { href: string; children: ReactNode }) {
   return (
     <article className="prose-doc min-w-0">
       {children}
+      <p className="not-prose mt-12 text-[13px]">
+        <a href={`${SOURCE}${href === "/docs" ? "/docs" : href}/page.tsx`} target="_blank" rel="noreferrer" className="text-link hover:underline">
+          Edit this page on GitHub
+        </a>
+      </p>
       <Pager href={href} />
     </article>
   );

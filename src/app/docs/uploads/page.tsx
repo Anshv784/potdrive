@@ -48,6 +48,11 @@ export default function Page() {
         </li>
       </ol>
 
+      <figure className="not-prose my-8 overflow-hidden rounded-2xl ring-1 ring-sep">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/shots/storing.jpg" alt="An upload in progress: one approval, then block-by-block storage" className="w-full" />
+      </figure>
+
       <H2 id="safety">Safety of the upload key</H2>
       <H3 id="blast">Blast radius</H3>
       <p>

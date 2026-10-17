@@ -4,6 +4,7 @@ import { ArchiveDemo } from "@/components/archive-demo";
 import { StorageCount } from "@/components/storage-count";
 import { CodeTabs } from "@/components/code";
 import { ButtonLink, MoreLink } from "@/components/ui";
+import { GithubIcon } from "@/components/logo";
 
 const steps = [
   {
@@ -91,13 +92,16 @@ export default function Home() {
             PotDrive puts your files straight into Portaldot&apos;s own TransactionStorage. One signature to store. Every byte
             checked by the browser that reads it.
           </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <ButtonLink href="/drive" size="lg">
               Open Drive
             </ButtonLink>
-            <MoreLink href="/docs" className="text-[17px]">
-              Learn how it works
-            </MoreLink>
+            <ButtonLink href="/docs" size="lg" variant="gray">
+              Read the docs
+            </ButtonLink>
+            <ButtonLink href="https://github.com/Anshv784/potdrive" size="lg" variant="gray" external>
+              <GithubIcon className="size-5" /> GitHub
+            </ButtonLink>
           </div>
           <div className="mx-auto mt-16 max-w-4xl">
             <ArchiveDemo />

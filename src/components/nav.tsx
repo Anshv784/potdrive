@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Wordmark } from "./logo";
+import { GithubIcon, Wordmark } from "./logo";
 import { ChainPulse } from "./chain-pulse";
 
 const links = [
   { href: "/drive", label: "Drive" },
   { href: "/explore", label: "Explore" },
-  { href: "/docs", label: "Docs" },
 ];
 
 export function Nav({ wide = false }: { wide?: boolean }) {
@@ -29,21 +28,32 @@ export function Nav({ wide = false }: { wide?: boolean }) {
               {l.label}
             </Link>
           ))}
-          <a href="https://github.com/Anshv784/potdrive" className="text-[12px] text-label opacity-80 transition-opacity duration-200 hover:opacity-100">
-            GitHub
-          </a>
+
         </nav>
         <div className="ml-auto flex items-center gap-4">
-          <span className="hidden md:inline-flex">
+          <span className="hidden lg:inline-flex">
             <ChainPulse />
           </span>
+          <Link href="/docs" className="hidden h-7 items-center rounded-full px-3 text-[12px] text-label ring-1 ring-sep transition-colors duration-200 hover:bg-fill sm:inline-flex">
+            Docs
+          </Link>
+          <a
+            href="https://github.com/Anshv784/potdrive"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-[12px] text-label ring-1 ring-sep transition-colors duration-200 hover:bg-fill"
+            aria-label="PotDrive on GitHub"
+          >
+            <GithubIcon className="size-3.5" />
+            <span className="hidden sm:inline">GitHub</span>
+          </a>
           <Link href="/drive" className="inline-flex h-7 items-center rounded-full bg-accent px-3 text-[12px] text-white transition-colors duration-200 hover:bg-accent-hover">
             Open Drive
           </Link>
         </div>
       </div>
       <nav className="flex gap-6 border-t border-sep px-5 py-2 sm:hidden">
-        {links.map((l) => (
+        {[...links, { href: "/docs", label: "Docs" }].map((l) => (
           <Link key={l.href} href={l.href} className={`text-[13px] ${path.startsWith(l.href) ? "text-label" : "text-label-2"}`}>
             {l.label}
           </Link>
