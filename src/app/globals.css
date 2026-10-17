@@ -180,3 +180,14 @@ body {
 .prose-doc table { width: 100%; border-collapse: collapse; margin: 1.25rem 0; font-size: 0.92rem; }
 .prose-doc th, .prose-doc td { text-align: left; padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--sep); color: var(--label-2); vertical-align: top; }
 .prose-doc th { color: var(--label); font-weight: 600; }
+
+/* Shiki dual-theme output. */
+.shiki-wrap pre { background: transparent !important; margin: 0; }
+.shiki-wrap span { color: var(--shiki-light); }
+@media (prefers-color-scheme: dark) {
+  .shiki-wrap span { color: var(--shiki-dark); }
+}
+.prose-doc ol { list-style: decimal; padding-left: 1.25rem; margin: 0.85rem 0; }
+.prose-doc ol li { margin: 0.35rem 0; }
+.prose-doc hr { border-color: var(--sep); margin: 2.5rem 0; }
+.prose-doc .not-prose code:not([class*="bg-"]) { background: transparent; padding: 0; border-radius: 0; }

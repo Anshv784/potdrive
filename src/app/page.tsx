@@ -1,4 +1,4 @@
-import { Check, Cpu, FileLock2, KeyRound, Layers, RefreshCw, ScanSearch, ShieldCheck, Minus } from "lucide-react";
+import { Check, Cpu, FileLock2, GitCompareArrows, Globe, KeyRound, Layers, PlayCircle, RefreshCw, ScanSearch, ShieldCheck, Minus } from "lucide-react";
 import { Footer, Nav } from "@/components/nav";
 import { ArchiveDemo } from "@/components/archive-demo";
 import { StorageCount } from "@/components/storage-count";
@@ -9,8 +9,8 @@ const steps = [
   {
     icon: Layers,
     title: "Prepared on your device.",
-    body: "Your file is cut into 1 MiB blocks and hashed with blake2b-256, the same hash Portaldot indexes. A UnixFS root links them in order.",
-    tech: "chunk · blake2b-256 · dag-pb",
+    body: "FastCDC cuts your file where its content says to, not every N bytes, then hashes each piece with blake2b-256, the hash Portaldot indexes. Blocks the chain already holds are skipped.",
+    tech: "FastCDC · blake2b-256 · dag-pb · dedup",
   },
   {
     icon: KeyRound,
@@ -165,8 +165,15 @@ export default function Home() {
 
         {/* features */}
         <section className="px-5 py-24">
-          <div className="mx-auto grid max-w-[1024px] gap-5 md:grid-cols-3">
+          <h2 className="headline mx-auto max-w-3xl text-center text-[40px] sm:text-[56px]">Engineered for a chain that charges by the byte.</h2>
+          <p className="mx-auto mt-4 max-w-2xl text-center text-[19px] text-label-2">
+            Storage on Portaldot costs about 105 tPOT per MiB. So PotDrive never stores the same byte twice.
+          </p>
+          <div className="mx-auto mt-12 grid max-w-[1024px] gap-5 md:grid-cols-3">
             {[
+              [GitCompareArrows, "Versions pay for changes only.", "Content-defined chunking keeps chunk boundaries stable across edits. Insert 1 KiB into a 16 MiB file and FastCDC stores 609 KiB again; fixed chunks would store all 16 MiB."],
+              [Globe, "Websites, served from the chain.", "potdrive deploy ./dist stores a UnixFS directory. The gateway resolves paths block by block and runs the site in a sandboxed origin."],
+              [PlayCircle, "Streaming with Range.", "The gateway maps a byte range to just the chunks that cover it, so video seeks without downloading what came before."],
               [FileLock2, "Private by choice.", "AES-256-GCM in your browser before upload. The chain only sees ciphertext. The key lives in the link, after the #."],
               [RefreshCw, "Keep-alive.", "Prepay renewals and a daily keeper renews your file before Portaldot drops it, reimbursed exactly, capped per file."],
               [ShieldCheck, "Verified everywhere.", "The Drive, the gateway, the SDK and the CLI all re-hash every block before they use it."],

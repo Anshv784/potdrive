@@ -12,3 +12,4 @@ contracts/broadcast
 keeper/.wrangler
 .DS_Store
 .scratch
+.next-e2e

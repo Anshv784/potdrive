@@ -11,8 +11,11 @@ export class RpcError extends Error {
 
 let nextId = 1;
 
+// Server-side override, used to run the gateway against a local fake node in tests.
+const DEFAULT_URL = (typeof process !== "undefined" && process.env?.POTDRIVE_RPC_URL) || NETWORK.http;
+
 // Plain JSON-RPC over HTTP. Works in browsers (the node sends CORS *), workers and Node.
-export async function rpc<T>(method: string, params: unknown[] = [], url: string = NETWORK.http): Promise<T> {
+export async function rpc<T>(method: string, params: unknown[] = [], url: string = DEFAULT_URL): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },

@@ -26,6 +26,7 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "^0.0.1",
+    "shiki": "^4.5.0",
     "viem": "^2.37.0"
   },
   "devDependencies": {
