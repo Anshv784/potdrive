@@ -27,17 +27,26 @@ contract PotDriveRegistry {
     }
 
     mapping(bytes32 => File) private _files;
+    /// @notice X25519 public keys that others can seal private-file keys to.
+    mapping(address => bytes32) public inboxKey;
     uint256 public count;
     address public admin;
     address public keeper;
 
-    event Registered(bytes32 indexed root, address indexed owner, uint64 size, uint32 chunks, bool isPrivate, string name, string mime);
+    /// @dev `parent` is the previous version's root (zero for a first version). Versions form
+    /// a chain readable from logs, at no storage cost.
+    event Registered(
+        bytes32 indexed root, address indexed owner, uint64 size, uint32 chunks, bool isPrivate, string name, string mime, bytes32 parent
+    );
     event Funded(bytes32 indexed root, address indexed from, uint256 amount, uint256 balance);
     event Renewed(bytes32 indexed root, uint32 expiresAt, uint256 cost, address indexed keeper);
     event Withdrawn(bytes32 indexed root, address indexed owner, uint256 amount);
     event Transferred(bytes32 indexed root, address indexed from, address indexed to);
     event Listed(bytes32 indexed root, bool listed);
     event KeeperChanged(address keeper);
+    /// @dev `sealedKey` is the file's AES key sealed to the recipient's X25519 inbox key.
+    event Shared(bytes32 indexed root, address indexed from, address indexed to, bytes sealedKey);
+    event InboxKeySet(address indexed owner, bytes32 key);
 
     error AlreadyRegistered();
     error UnknownFile();
@@ -62,10 +71,15 @@ contract PotDriveRegistry {
     }
 
     /// @notice Claim a root you just stored. Any value sent is prepaid keep-alive.
-    function register(bytes32 root, uint64 size, uint32 chunks, bool isPrivate, string calldata name, string calldata mime)
-        external
-        payable
-    {
+    function register(
+        bytes32 root,
+        uint64 size,
+        uint32 chunks,
+        bool isPrivate,
+        string calldata name,
+        string calldata mime,
+        bytes32 parent
+    ) external payable {
         if (size == 0 || chunks == 0) revert EmptyFile();
         if (_files[root].owner != address(0)) revert AlreadyRegistered();
         uint32 nowBlock = uint32(block.number);
@@ -79,7 +93,7 @@ contract PotDriveRegistry {
             keepAlive: uint128(msg.value)
         });
         count++;
-        emit Registered(root, msg.sender, size, chunks, isPrivate, name, mime);
+        emit Registered(root, msg.sender, size, chunks, isPrivate, name, mime, parent);
         if (msg.value > 0) emit Funded(root, msg.sender, msg.value, msg.value);
     }
 
@@ -121,6 +135,16 @@ contract PotDriveRegistry {
         File storage f = _files[root];
         f.flags = listed ? f.flags & ~UNLISTED : f.flags | UNLISTED;
         emit Listed(root, listed);
+    }
+
+    function setInboxKey(bytes32 key) external {
+        inboxKey[msg.sender] = key;
+        emit InboxKeySet(msg.sender, key);
+    }
+
+    /// @notice Give `to` a private file's key, sealed to their inbox key. Owner only.
+    function share(bytes32 root, address to, bytes calldata sealedKey) external onlyOwnerOf(root) {
+        emit Shared(root, msg.sender, to, sealedKey);
     }
 
     function setKeeper(address keeper_) external {

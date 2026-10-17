@@ -3,6 +3,7 @@ import type { SubmittableExtrinsic } from "@polkadot/api/types";
 import { Keyring } from "@polkadot/keyring";
 import type { KeyringPair } from "@polkadot/keyring/types";
 import { cryptoWaitReady, mnemonicGenerate } from "@polkadot/util-crypto";
+import { u8aToHex } from "@polkadot/util";
 import type { Address } from "viem";
 import { contentHash } from "./cid";
 import type { Block } from "./dag";
@@ -68,13 +69,19 @@ export interface SessionStore {
   clear(root: string): void;
 }
 
-const ED = 10n ** 13n; // Balances.ExistentialDeposit on Portaldot V3 (0.1 tPOT)
+const ED = 10n ** 13n;
+
+// polkadot.js reads a raw Uint8Array passed as `Bytes` as already SCALE-encoded (length
+// prefixed). Hex is taken as the raw value, which is what store() must index.
+export function storeCall(api: ApiPromise, bytes: Uint8Array) {
+  return api.tx.transactionStorage.store(u8aToHex(bytes));
+} // Balances.ExistentialDeposit on Portaldot V3 (0.1 tPOT)
 
 async function feeModel(api: ApiPromise, who: string) {
   const small = 1024;
   const big = CHUNK_SIZE;
   const [a, b] = await Promise.all(
-    [small, big].map(async (n) => BigInt((await api.tx.transactionStorage.store(new Uint8Array(n)).paymentInfo(who)).partialFee.toString())),
+    [small, big].map(async (n) => BigInt((await storeCall(api, new Uint8Array(n)).paymentInfo(who)).partialFee.toString())),
   );
   const perByte = (b - a) / BigInt(big - small);
   return (size: number) => a + perByte * BigInt(size - small);
@@ -216,7 +223,7 @@ async function storeBlocks(
       const i = cursor++;
       update(i, { status: "sent" });
       try {
-        const inc = await send(api, api.tx.transactionStorage.store(data[i].bytes), key, {
+        const inc = await send(api, storeCall(api, data[i].bytes), key, {
           nonce: base + i,
           onFinalized: () => update(i, { status: "finalized" }),
         });

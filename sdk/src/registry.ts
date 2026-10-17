@@ -3,7 +3,7 @@ import type { SubmittableExtrinsic } from "@polkadot/api/types";
 import { createPublicClient, defineChain, encodeFunctionData, http, type Address, type Hex } from "viem";
 import { registryAbi } from "./abi";
 import { NATIVE_TO_EVM, NETWORK } from "./network";
-import { contentHash, DAG_PB } from "./cid";
+import { contentHash, DAG_PB, parseCid } from "./cid";
 import type { PreparedFile } from "./prepare";
 
 export const portaldot = defineChain({
@@ -28,6 +28,7 @@ export interface RegistryFile {
   mime: string;
   keepAlive?: bigint;
   registeredIn?: number;
+  parent?: Hex;
 }
 
 type Tuple = readonly [Address, bigint, number, number, number, bigint, boolean, boolean];
@@ -38,7 +39,7 @@ async function state(registry: Address, root: Hex): Promise<Tuple> {
   return (await evm.readContract({ address: registry, abi: registryAbi, functionName: "fileOf", args: [root] })) as Tuple;
 }
 
-function merge(root: Hex, t: Tuple, meta: { name: string; mime: string; block?: number }): RegistryFile {
+function merge(root: Hex, t: Tuple, meta: { name: string; mime: string; block?: number; parent?: Hex }): RegistryFile {
   const [owner, size, chunks, storedAt, expiresAt, keepAlive, isPrivate, listed] = t;
   return {
     root,
@@ -53,6 +54,7 @@ function merge(root: Hex, t: Tuple, meta: { name: string; mime: string; block?: 
     mime: meta.mime,
     keepAlive,
     registeredIn: meta.block,
+    parent: meta.parent && !ZERO.test(meta.parent) ? meta.parent : undefined,
   };
 }
 
@@ -75,7 +77,7 @@ async function logs<T>(registry: Address, event: typeof registeredEvent | typeof
 }
 
 interface RegLog {
-  args: { root: Hex; owner: Address; name: string; mime: string };
+  args: { root: Hex; owner: Address; name: string; mime: string; parent: Hex };
   blockNumber: bigint;
 }
 
@@ -87,7 +89,7 @@ export async function readFile(registry: Address, root: Hex): Promise<RegistryFi
   const t = await state(registry, root);
   if (ZERO.test(t[0])) return null;
   const reg = (await logs<RegLog>(registry, registeredEvent).catch(() => [])).find((l) => l.args.root.toLowerCase() === root.toLowerCase());
-  return merge(root, t, { name: reg?.args.name ?? "", mime: reg?.args.mime ?? "", block: reg ? Number(reg.blockNumber) : undefined });
+  return merge(root, t, { name: reg?.args.name ?? "", mime: reg?.args.mime ?? "", block: reg ? Number(reg.blockNumber) : undefined, parent: reg?.args.parent });
 }
 
 export async function readOwned(registry: Address, owner: Address): Promise<RegistryFile[]> {
@@ -101,7 +103,7 @@ export async function readOwned(registry: Address, owner: Address): Promise<Regi
   const files = await Promise.all(
     roots.map(async (root) => {
       const m = meta.get(root.toLowerCase());
-      return merge(root, await state(registry, root), { name: m?.args.name ?? "", mime: m?.args.mime ?? "", block: m ? Number(m.blockNumber) : undefined });
+      return merge(root, await state(registry, root), { name: m?.args.name ?? "", mime: m?.args.mime ?? "", block: m ? Number(m.blockNumber) : undefined, parent: m?.args.parent });
     }),
   );
   return files.filter((f) => f.owner.toLowerCase() === owner.toLowerCase()).sort((a, b) => b.storedAt - a.storedAt);
@@ -111,7 +113,7 @@ export async function readPage(registry: Address, offset = 0, limit = 50): Promi
   const all = (await registrations(registry)).reverse();
   const slice = all.slice(offset, offset + limit);
   const files = await Promise.all(
-    slice.map(async (l) => merge(l.args.root, await state(registry, l.args.root), { name: l.args.name, mime: l.args.mime, block: Number(l.blockNumber) })),
+    slice.map(async (l) => merge(l.args.root, await state(registry, l.args.root), { name: l.args.name, mime: l.args.mime, block: Number(l.blockNumber), parent: l.args.parent })),
   );
   return { files, total: all.length };
 }
@@ -128,7 +130,15 @@ export function registerCalldata(file: PreparedFile): Hex {
   return encodeFunctionData({
     abi: registryAbi,
     functionName: "register",
-    args: [contentHash(file.root), BigInt(file.storedBytes), chunks, file.private, file.name, file.mime],
+    args: [
+      contentHash(file.root),
+      BigInt(file.storedBytes),
+      chunks,
+      file.private,
+      file.name,
+      file.mime,
+      file.parent ? contentHash(parseCid(file.parent)) : (`0x${"0".repeat(64)}` as Hex),
+    ],
   });
 }
 
@@ -188,4 +198,50 @@ export function evmValue(planck: bigint): bigint {
 
 export function nativeValue(wei: bigint): bigint {
   return wei / NATIVE_TO_EVM;
+}
+
+// Every version of a file, newest first, by following `parent` links in Registered logs.
+export async function readVersions(registry: Address, root: Hex): Promise<{ root: Hex; size: number; block: number }[]> {
+  const all = await registrations(registry);
+  const byRoot = new Map(all.map((l) => [l.args.root.toLowerCase(), l]));
+  const out: { root: Hex; size: number; block: number }[] = [];
+  const seen = new Set<string>();
+  let cur: RegLog | undefined = byRoot.get(root.toLowerCase());
+  while (cur && !seen.has(cur.args.root.toLowerCase())) {
+    seen.add(cur.args.root.toLowerCase());
+    out.push({ root: cur.args.root, size: Number((cur.args as unknown as { size: bigint }).size), block: Number(cur.blockNumber) });
+    cur = ZERO.test(cur.args.parent) ? undefined : byRoot.get(cur.args.parent.toLowerCase());
+  }
+  return out;
+}
+
+// ---- sharing to wallets ----
+
+const sharedEvent = registryAbi.find((x) => x.type === "event" && x.name === "Shared")!;
+
+export async function readInboxKey(registry: Address, owner: Address): Promise<Hex | null> {
+  const k = (await evm.readContract({ address: registry, abi: registryAbi, functionName: "inboxKey", args: [owner] })) as Hex;
+  return ZERO.test(k) ? null : k;
+}
+
+export async function readSharedWith(registry: Address, to: Address): Promise<{ root: Hex; from: Address; sealedKey: Hex; block: number }[]> {
+  const latest = await evm.getBlockNumber();
+  const out: { root: Hex; from: Address; sealedKey: Hex; block: number }[] = [];
+  for (let from = REGISTRY_FROM_BLOCK; from <= latest; from += 10_000n) {
+    const toBlock = from + 9_999n > latest ? latest : from + 9_999n;
+    const page = (await evm.getLogs({ address: registry, event: sharedEvent as never, args: { to } as never, fromBlock: from, toBlock })) as unknown as {
+      args: { root: Hex; from: Address; sealedKey: Hex };
+      blockNumber: bigint;
+    }[];
+    out.push(...page.map((l) => ({ root: l.args.root, from: l.args.from, sealedKey: l.args.sealedKey, block: Number(l.blockNumber) })));
+  }
+  return out.reverse();
+}
+
+export function setInboxKeyCalldata(key: Hex): Hex {
+  return encodeFunctionData({ abi: registryAbi, functionName: "setInboxKey", args: [key] });
+}
+
+export function shareCalldata(root: Hex, to: Address, sealedKey: Hex): Hex {
+  return encodeFunctionData({ abi: registryAbi, functionName: "share", args: [root, to, sealedKey] });
 }

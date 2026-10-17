@@ -13,3 +13,8 @@ export * from "./upload";
 export * from "./renew";
 export * from "./chain";
 export { registryAbi } from "./abi";
+export * from "./share";
+export * from "./nft";
+export * from "./metatx";
+export * from "./sponsored";
+export * from "./proofs";

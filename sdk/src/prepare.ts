@@ -16,6 +16,8 @@ export interface PreparedFile {
   key?: string;
   // Directories only.
   files?: { path: string; cid: string; size: number }[];
+  // Previous version's root, when this upload replaces an earlier file.
+  parent?: string;
 }
 
 export interface PrepareOptions {
@@ -23,6 +25,7 @@ export interface PrepareOptions {
   mime?: string;
   private?: boolean;
   chunking?: Chunking;
+  parent?: string;
 }
 
 // Everything is computed locally before a single transaction is signed:
@@ -47,6 +50,7 @@ export async function prepareFile(data: Uint8Array, opts: PrepareOptions): Promi
     mime: opts.private ? "application/octet-stream" : mime,
     private: !!opts.private,
     key,
+    parent: opts.parent,
   };
 }
 

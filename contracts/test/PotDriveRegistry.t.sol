@@ -39,7 +39,7 @@ contract PotDriveRegistryTest {
 
     function test_registerSetsOwnerAndExpiry() public {
         vm.prank(alice);
-        reg.register{value: 3 ether}(ROOT, 2_000_000, 3, false, "deck.pdf", "application/pdf");
+        reg.register{value: 3 ether}(ROOT, 2_000_000, 3, false, "deck.pdf", "application/pdf", bytes32(0));
         (address owner, uint64 size, uint32 chunks, uint32 storedAt, uint32 expiresAt, uint256 keep, bool priv, bool listed) = reg.fileOf(ROOT);
         require(owner == alice, "owner");
         _eq(size, 2_000_000);
@@ -53,14 +53,14 @@ contract PotDriveRegistryTest {
 
     function test_privateFilesUnlistedByDefault() public {
         vm.prank(alice);
-        reg.register(ROOT, 10, 1, true, "", "application/octet-stream");
+        reg.register(ROOT, 10, 1, true, "", "application/octet-stream", bytes32(0));
         (,,,,,, bool priv, bool listed) = reg.fileOf(ROOT);
         require(priv && !listed, "private unlisted");
     }
 
     function test_setListedTogglesOnlyListingBit() public {
         vm.prank(alice);
-        reg.register(ROOT, 10, 1, true, "", "x");
+        reg.register(ROOT, 10, 1, true, "", "x", bytes32(0));
         vm.prank(alice);
         reg.setListed(ROOT, true);
         (,,,,,, bool priv, bool listed) = reg.fileOf(ROOT);
@@ -69,21 +69,21 @@ contract PotDriveRegistryTest {
 
     function test_cannotRegisterTwice() public {
         vm.prank(alice);
-        reg.register(ROOT, 10, 1, false, "a", "b");
+        reg.register(ROOT, 10, 1, false, "a", "b", bytes32(0));
         vm.prank(bob);
         vm.expectRevert(PotDriveRegistry.AlreadyRegistered.selector);
-        reg.register(ROOT, 10, 1, false, "a", "b");
+        reg.register(ROOT, 10, 1, false, "a", "b", bytes32(0));
     }
 
     function test_rejectsEmpty() public {
         vm.prank(alice);
         vm.expectRevert(PotDriveRegistry.EmptyFile.selector);
-        reg.register(ROOT, 0, 1, false, "a", "b");
+        reg.register(ROOT, 0, 1, false, "a", "b", bytes32(0));
     }
 
     function test_anyoneCanFund_keeperIsReimbursed() public {
         vm.prank(alice);
-        reg.register(ROOT, 10, 1, false, "a", "b");
+        reg.register(ROOT, 10, 1, false, "a", "b", bytes32(0));
         vm.prank(bob);
         reg.fund{value: 5 ether}(ROOT);
         uint256 before = keeper.balance;
@@ -98,7 +98,7 @@ contract PotDriveRegistryTest {
 
     function test_onlyKeeperRenews() public {
         vm.prank(alice);
-        reg.register{value: 1 ether}(ROOT, 10, 1, false, "a", "b");
+        reg.register{value: 1 ether}(ROOT, 10, 1, false, "a", "b", bytes32(0));
         vm.prank(alice);
         vm.expectRevert(PotDriveRegistry.NotKeeper.selector);
         reg.renewed(ROOT, 1, 1);
@@ -106,7 +106,7 @@ contract PotDriveRegistryTest {
 
     function test_keeperCannotOverdraw() public {
         vm.prank(alice);
-        reg.register{value: 1 ether}(ROOT, 10, 1, false, "a", "b");
+        reg.register{value: 1 ether}(ROOT, 10, 1, false, "a", "b", bytes32(0));
         vm.prank(keeper);
         vm.expectRevert(PotDriveRegistry.InsufficientKeepAlive.selector);
         reg.renewed(ROOT, 1, 2 ether);
@@ -114,7 +114,7 @@ contract PotDriveRegistryTest {
 
     function test_withdrawRefundsOwnerOnly() public {
         vm.prank(alice);
-        reg.register{value: 4 ether}(ROOT, 10, 1, false, "a", "b");
+        reg.register{value: 4 ether}(ROOT, 10, 1, false, "a", "b", bytes32(0));
         vm.prank(bob);
         vm.expectRevert(PotDriveRegistry.NotOwner.selector);
         reg.withdraw(ROOT);
@@ -125,9 +125,30 @@ contract PotDriveRegistryTest {
         _eq(_keep(ROOT), 0);
     }
 
+    function test_inboxKeyAndShare() public {
+        vm.prank(bob);
+        reg.setInboxKey(bytes32(uint256(42)));
+        require(reg.inboxKey(bob) == bytes32(uint256(42)), "inbox");
+        vm.prank(alice);
+        reg.register(ROOT, 10, 1, true, "", "x", bytes32(0));
+        vm.prank(bob);
+        vm.expectRevert(PotDriveRegistry.NotOwner.selector);
+        reg.share(ROOT, alice, hex"01");
+        vm.prank(alice);
+        reg.share(ROOT, bob, hex"0102");
+    }
+
+    function test_versionsLinkParents() public {
+        vm.prank(alice);
+        reg.register(ROOT, 10, 1, false, "a", "b", bytes32(0));
+        vm.prank(alice);
+        reg.register(keccak256("v2"), 12, 1, false, "a", "b", ROOT);
+        _eq(reg.count(), 2);
+    }
+
     function test_transferChangesOwner() public {
         vm.prank(alice);
-        reg.register(ROOT, 10, 1, false, "a", "b");
+        reg.register(ROOT, 10, 1, false, "a", "b", bytes32(0));
         vm.prank(alice);
         reg.transfer(ROOT, bob);
         require(_owner(ROOT) == bob, "bob owns");
