@@ -13,6 +13,9 @@ import { useHead } from "../chain-pulse";
 import { CopyButton } from "../code";
 import { expiryTone } from "../drive/file-card";
 import { Button, DocIcon, Group, Ring, Row, Spinner } from "../ui";
+import { FundSheet } from "../drive/actions";
+import { rememberedAccount, type InjectedAccount } from "@/lib/wallet";
+import { useApi } from "@/lib/use-api";
 
 interface Meta {
   head: number;
@@ -25,6 +28,9 @@ interface Meta {
 type Load = "loading" | "ok" | "missing" | "corrupt" | "error" | "locked" | "badkey";
 
 export function FileView({ cid, nameHint }: { cid: string; nameHint?: string }) {
+  const [funding, setFunding] = useState<InjectedAccount | null>(null);
+  const [needWallet, setNeedWallet] = useState(false);
+  const { api } = useApi();
   const { head } = useHead();
   const [checks, setChecks] = useState<ChunkCheck[]>([]);
   const [state, setState] = useState<Load>("loading");
@@ -270,6 +276,25 @@ export function FileView({ cid, nameHint }: { cid: string; nameHint?: string }) 
               </div>
             </div>
             {meta?.registry && <Row label="Keep-alive prepaid" detail={`${formatPot(BigInt(meta.registry.keepAlive) / 10_000n, 2)} tPOT`} />}
+            {meta?.registry && (
+              <div className="px-4 py-2.5">
+                <button
+                  onClick={() => {
+                    const a = rememberedAccount();
+                    if (a) setFunding(a);
+                    else setNeedWallet(true);
+                  }}
+                  className="text-[15px] text-link hover:underline"
+                >
+                  Help keep this file alive
+                </button>
+                {needWallet && (
+                  <p className="mt-1 text-[12px] text-label-2">
+                    Connect a wallet in <a href="/drive" className="text-link">Drive</a> first, then come back.
+                  </p>
+                )}
+              </div>
+            )}
           </Group>
 
           <Group gray title="Info">
@@ -291,6 +316,14 @@ export function FileView({ cid, nameHint }: { cid: string; nameHint?: string }) 
           </Group>
         </aside>
       </div>
+      {funding && meta?.registry && (
+        <FundSheet
+          f={{ root: cid, name: name || meta.registry.name, mime: mime || meta.registry.mime, size: meta.registry.size, isPrivate: sealed, registered: true, expiresAt: expiry ?? undefined }}
+          api={api}
+          account={funding}
+          onClose={() => setFunding(null)}
+        />
+      )}
     </div>
   );
 }

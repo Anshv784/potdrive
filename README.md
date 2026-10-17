@@ -16,6 +16,11 @@ PotDrive turns that unused pallet into a product:
 
 | | |
 |---|---|
+| **Versions** | New versions link to their parent; FastCDC + dedup means v2 only pays for changed blocks. |
+| **Gasless uploads** | Users with 0 tPOT sign one authorization; a relay pays via Portaldot's **MetaTx** pallet. |
+| **Share with a wallet** | Private file keys sealed to a recipient's X25519 inbox key (HKDF + AES-GCM), emitted as a `Shared` event. |
+| **Native NFTs** | Mint on Portaldot's **Nfts** pallet in one batch; media stored in TransactionStorage. |
+| **SDK + React + MCP** | npm-ready `@potdrive/sdk` with `usePotFile` / `<PotImage>`, and an MCP server for AI agents. |
 | **One signature per upload** | Your wallet signs one `utility.batchAll`: fund an in-tab upload key + register the file. The key stores each block and returns its unspent balance. |
 | **Real IPFS CIDs** | 1 MiB raw leaves + a UnixFS `dag-pb` root, all hashed with blake2b-256, the digest TransactionStorage indexes. |
 | **Verified reads** | Browser, SDK, CLI and gateway re-hash every block from `bitswap_v1_get` before using it. |
@@ -47,17 +52,21 @@ Why one transaction per block: the node's database indexes the **tail** of each 
 | `Revive` (`instantiateWithCode`, `call`, `reviveApi.*`) | Registry deployed as EVM bytecode, called from a Polkadot wallet; H160 mapping |
 | `Utility.batchAll`, `Balances.transferAll` | One-signature uploads; returning unspent upload budget |
 | Revive Ethereum RPC (`eth_call`, `eth_getLogs`) | Reading the registry and its logs |
+| `MetaTx` (`dispatch`) + `VerifySignature` | Sponsored (gasless) uploads through a relay |
+| `Nfts` (`create`, `mint`, `setMetadata`) | NFTs whose media lives on Portaldot |
 
 ## Repo
 
 ```
 sdk/src        TypeScript SDK (CIDs, DAG, envelopes, upload, fetch, renew, registry, keeper)
 sdk/test       bun tests
-contracts      PotDriveRegistry.sol + forge tests (via-ir, 2.6 KB runtime)
+contracts      PotDriveRegistry.sol + 12 forge tests (via-ir, ~3 KB runtime)
 src/app        Next.js site: landing, /drive, /f/[cid], /explore, /docs
 src/app/ipfs   IPFS-style gateway route
 src/app/api    file metadata, chain state, keeper cron
 cli            potdrive CLI (bun)
+mcp            MCP server for AI agents (read, store, deploy)
+sdk/react      React bindings: usePotFile, <PotImage>, <PotVideo>
 scripts        registry deployment through pallet-revive
 ```
 
@@ -66,7 +75,7 @@ scripts        registry deployment through pallet-revive
 ```bash
 bun install
 bun run dev                     # http://localhost:3000
-bun test sdk                    # SDK tests
+bun test sdk                    # 34 SDK tests
 cd contracts && forge test      # registry tests
 
 # CLI

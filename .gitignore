@@ -13,3 +13,5 @@ keeper/.wrangler
 .DS_Store
 .scratch
 .next-e2e
+sdk/dist
+*.tgz

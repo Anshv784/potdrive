@@ -17,6 +17,9 @@ export interface LocalFile {
   owner: string;
   createdAt: number;
   expiresAt?: number;
+  // Previous version's root.
+  parent?: string;
+  sponsored?: boolean;
 }
 
 const FILES = "potdrive.files";
@@ -78,4 +81,25 @@ export const sessionStore: SessionStore = {
 
 export function pendingSessions(owner?: string): PendingSession[] {
   return read<PendingSession>(SESSIONS).filter((s) => !owner || s.owner === owner);
+}
+
+// Version chain for a file, newest first, from this browser's records.
+export function localVersions(root: string): LocalFile[] {
+  const all = read<LocalFile>(FILES);
+  const byRoot = new Map(all.map((f) => [f.root, f]));
+  const out: LocalFile[] = [];
+  // newer versions that point to this root
+  let newer = all.find((f) => f.parent === root);
+  const ahead: LocalFile[] = [];
+  while (newer && !ahead.includes(newer)) {
+    ahead.unshift(newer);
+    newer = all.find((f) => f.parent === newer!.root);
+  }
+  out.push(...ahead);
+  let cur = byRoot.get(root);
+  while (cur && !out.includes(cur)) {
+    out.push(cur);
+    cur = cur.parent ? byRoot.get(cur.parent) : undefined;
+  }
+  return out;
 }

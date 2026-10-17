@@ -1,6 +1,6 @@
 import type { ApiPromise } from "@polkadot/api";
 import type { SubmittableExtrinsic } from "@polkadot/api/types";
-import { createPublicClient, defineChain, encodeFunctionData, http, type Address, type Hex } from "viem";
+import { createPublicClient, defineChain, encodeFunctionData, http, type Address, type Hex, type PublicClient } from "viem";
 import { registryAbi } from "./abi";
 import { NATIVE_TO_EVM, NETWORK } from "./network";
 import { contentHash, DAG_PB, parseCid } from "./cid";
@@ -13,7 +13,7 @@ export const portaldot = defineChain({
   rpcUrls: { default: { http: [NETWORK.evm] } },
 });
 
-export const evm = createPublicClient({ chain: portaldot, transport: http(NETWORK.evm) });
+export const evm: PublicClient = createPublicClient({ chain: portaldot, transport: http(NETWORK.evm) });
 
 export interface RegistryFile {
   root: Hex;

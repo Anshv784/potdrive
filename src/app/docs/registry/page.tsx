@@ -25,17 +25,22 @@ export default function Page() {
       <Code
         lang="solidity"
         title="PotDriveRegistry.sol"
-        code={`function register(bytes32 root, uint64 size, uint32 chunks, bool isPrivate, string name, string mime) payable;
+        code={`function register(bytes32 root, uint64 size, uint32 chunks, bool isPrivate, string name, string mime,
+                  bytes32 parent) payable;                       // parent = previous version, or zero
 function fund(bytes32 root) payable;                            // anyone
 function renewed(bytes32 root, uint32 expiresAt, uint256 cost); // keeper only, capped by the file's balance
 function withdraw(bytes32 root);                                // owner takes back unused keep-alive
 function transfer(bytes32 root, address to);                    // owner
 function setListed(bytes32 root, bool listed);                  // owner
+function setInboxKey(bytes32 key);                              // X25519 public key for receiving shares
+function share(bytes32 root, address to, bytes sealedKey);      // owner: file key sealed to to's inbox
 function fileOf(bytes32 root) view returns (address owner, uint64 size, uint32 chunks,
     uint32 storedAt, uint32 expiresAt, uint256 keepAlive, bool isPrivate, bool listed);
 
 event Registered(bytes32 indexed root, address indexed owner, uint64 size, uint32 chunks,
-                 bool isPrivate, string name, string mime);
+                 bool isPrivate, string name, string mime, bytes32 parent);
+event Shared(bytes32 indexed root, address indexed from, address indexed to, bytes sealedKey);
+event InboxKeySet(address indexed owner, bytes32 key);
 event Funded(bytes32 indexed root, address indexed from, uint256 amount, uint256 balance);
 event Renewed(bytes32 indexed root, uint32 expiresAt, uint256 cost, address indexed keeper);
 event Withdrawn(bytes32 indexed root, address indexed owner, uint256 amount);
@@ -60,9 +65,10 @@ event Listed(bytes32 indexed root, bool listed);`}
         </li>
         <li>Names, types and listings are event logs, which cost no deposit. Lists are rebuilt with <code>eth_getLogs</code>.</li>
         <li>
-          Compiled with <code>via_ir</code> and <code>optimizer_runs = 1</code>. The runtime bytecode is 2,608 bytes, down from
-          7,136 in the first version. The deployment deposit dropped from about 578 tPOT to about 224 tPOT, measured with a{" "}
-          <code>reviveApi.instantiate</code> dry run.
+          Compiled with <code>via_ir</code> and <code>optimizer_runs = 1</code>. The runtime bytecode is about 3 KB with versions and
+          sharing, down from 7,136 bytes in the first version. Slimming the first version cut the deployment deposit from about 578 tPOT to
+          about 224 tPOT, measured with a <code>reviveApi.instantiate</code> dry run. Versions and shares are events, so they add no per-file
+          deposit.
         </li>
       </ul>
 
@@ -82,8 +88,8 @@ await send(api, api.tx.revive.instantiateWithCode(0, weight, depositLimit, code,
 
       <H2 id="tests">Tests</H2>
       <p>
-        Ten Foundry tests cover ownership, expiry, private-by-default listing, re-registration, empty files, funding by third
-        parties, keeper reimbursement and its cap, owner-only withdraw, and transfers. Run them with{" "}
+        Twelve Foundry tests cover ownership, expiry, private-by-default listing, re-registration, empty files, funding by third
+        parties, keeper reimbursement and its cap, owner-only withdraw, transfers, version links, inbox keys and owner-only sharing. Run them with{" "}
         <code>cd contracts &amp;&amp; forge test</code>.
       </p>
     </Doc>

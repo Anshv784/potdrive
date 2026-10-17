@@ -15,6 +15,7 @@ const eslintConfig = defineConfig([
   },
   globalIgnores([
     ".scratch/**",
+    "sdk/dist/**",
     "contracts/**",
     // Default ignores of eslint-config-next:
     ".next/**",

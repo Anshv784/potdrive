@@ -23,12 +23,18 @@ import {
   Search,
   Timer,
   X,
+  Users,
+  Gem,
+  History,
+  Send,
+  HeartPulse,
 } from "lucide-react";
 import { formatPot, NETWORK } from "@potdrive/sdk/network";
 import { shortCid } from "@potdrive/sdk/cid";
 import { useApi, useBalance } from "@/lib/use-api";
 import { rememberAccount, rememberedAccount, type InjectedAccount } from "@/lib/wallet";
-import { forgetLocalFile, localFiles, pendingSessions, sessionStore } from "@/lib/library";
+import { forgetLocalFile, localFiles, localVersions, pendingSessions, sessionStore } from "@/lib/library";
+import { loadInbox } from "@/lib/inbox";
 import { takePending } from "@/lib/pending";
 import { REGISTRY, SITE } from "@/lib/config";
 import { SIMULATE } from "@/lib/simulate";
@@ -39,18 +45,21 @@ import { Button, DocIcon, Ring } from "../ui";
 import { AccountChip, ConnectCard } from "./connect";
 import { expiryTone, type CardFile } from "./file-card";
 import { UploadFlow } from "./upload-flow";
+import { FundSheet, InboxSheet, MintSheet, ShareSheet } from "./actions";
 
 const DEMO_ACCOUNT: InjectedAccount = { address: "5CX7xVi2a478v9TgQJ65A1cgWpVwbozohGjdS4gPbH2mKhc6", name: "Demo", source: "simulate" };
 const MAX = 64 * 1024 * 1024;
 const SOON = Math.round((2 * 86_400_000) / NETWORK.blockTimeMs); // 2 days in blocks
 
-type View = "all" | "recent" | "sites" | "private" | "expiring";
+type View = "all" | "recent" | "sites" | "private" | "shared" | "nfts" | "expiring";
 type Sort = "name" | "size" | "date" | "expiry";
 
 export interface DriveFile extends CardFile {
   createdAt?: number;
   storedAtBlock?: number;
   blocks?: number;
+  parent?: string;
+  sharedBy?: string;
 }
 
 const VIEWS: { id: View; label: string; icon: typeof HardDrive }[] = [
@@ -58,6 +67,8 @@ const VIEWS: { id: View; label: string; icon: typeof HardDrive }[] = [
   { id: "recent", label: "Recent", icon: Clock3 },
   { id: "sites", label: "Websites", icon: Globe },
   { id: "private", label: "Private", icon: Lock },
+  { id: "shared", label: "Shared with me", icon: Users },
+  { id: "nfts", label: "NFTs", icon: Gem },
   { id: "expiring", label: "Expiring soon", icon: Timer },
 ];
 
@@ -117,6 +128,11 @@ export function Drive() {
   const [selected, setSelected] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; root: string } | null>(null);
   const [newOpen, setNewOpen] = useState(false);
+  const [sheet, setSheet] = useState<{ kind: "mint" | "share" | "fund" | "inbox"; root?: string } | null>(null);
+  const [versionOf, setVersionOf] = useState<{ root: string; name: string } | null>(null);
+  const [shared, setShared] = useState<DriveFile[]>([]);
+  const [nfts, setNfts] = useState<{ collection: number; item: number; name?: string; image?: string }[] | null>(null);
+  const versionPicker = useRef<HTMLInputElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   const folderPicker = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
@@ -132,6 +148,16 @@ export function Drive() {
       if (l === "grid" || l === "list") setLayout(l);
     } catch {}
   }, [simulate]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setMenu(null);
+      setNewOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!account) return setFiles([]);
@@ -149,6 +175,7 @@ export function Drive() {
         registered: false,
         createdAt: f.createdAt,
         blocks: f.blocks,
+        parent: f.parent,
       });
     }
     if (REGISTRY && api && !simulate) {
@@ -169,6 +196,7 @@ export function Drive() {
             createdAt: prev?.createdAt,
             storedAtBlock: r.storedAt,
             blocks: prev?.blocks ?? r.chunks,
+            parent: prev?.parent ?? (r.parent ? cidFromContentHash(r.parent, DAG_PB).toString() : undefined),
           });
         }
       } catch {
@@ -183,6 +211,56 @@ export function Drive() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Files others sealed to this account's inbox key.
+  useEffect(() => {
+    if (view !== "shared" || !account || !api || !REGISTRY) return;
+    const inbox = loadInbox(account.address);
+    if (!inbox) return;
+    let live = true;
+    (async () => {
+      const [{ evmAddressOf, readSharedWith, readFile }, { openFromInbox }, { cidFromContentHash, DAG_PB, RAW }] = await Promise.all([
+        import("@potdrive/sdk/registry"),
+        import("@potdrive/sdk/share"),
+        import("@potdrive/sdk/cid"),
+      ]);
+      const out: DriveFile[] = [];
+      for (const sh of await readSharedWith(REGISTRY, await evmAddressOf(api, account.address))) {
+        const rec = await readFile(REGISTRY, sh.root).catch(() => null);
+        const key = await openFromInbox(sh.sealedKey, inbox.privateKey, sh.root).catch(() => null);
+        if (!rec || !key) continue;
+        out.push({
+          root: cidFromContentHash(sh.root, rec.chunks > 1 ? DAG_PB : RAW).toString(),
+          name: "",
+          mime: "application/octet-stream",
+          size: rec.size,
+          key,
+          isPrivate: true,
+          expiresAt: rec.expiresAt,
+          registered: true,
+          storedAtBlock: rec.storedAt,
+          sharedBy: sh.from,
+        });
+      }
+      if (live) setShared(out);
+    })().catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [view, account, api]);
+
+  // NFTs minted on Portaldot's Nfts pallet, owned by this account.
+  useEffect(() => {
+    if (view !== "nfts" || !account || !api || simulate) return;
+    let live = true;
+    import("@potdrive/sdk/nft")
+      .then(({ ownedNfts }) => ownedNfts(api, account.address))
+      .then((list) => live && setNfts(list.map((n) => ({ collection: n.collection, item: n.item, name: n.meta.name, image: n.meta.image }))))
+      .catch(() => live && setNfts([]));
+    return () => {
+      live = false;
+    };
+  }, [view, account, api, simulate]);
 
   const chooseFile = (f: File) => {
     if (f.size > MAX) return setNotice(`${f.name} is ${bytes(f.size)}. The Drive takes up to 64 MiB per upload; the CLI has no cap.`);
@@ -217,18 +295,22 @@ export function Drive() {
 
   const counts = useMemo(
     () => ({
-      all: files.length,
+      all: files.filter((f) => !files.some((g) => g.parent === f.root)).length,
       recent: 0,
       sites: files.filter(isDir).length,
       private: files.filter((f) => f.isPrivate).length,
+      shared: shared.length,
+      nfts: nfts?.length ?? 0,
       expiring: files.filter(expiring).length,
     }),
-    [files, expiring],
+    [files, expiring, shared.length, nfts],
   );
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = files.filter((f) => {
+    const superseded = new Set(files.map((f) => f.parent).filter(Boolean));
+    const source = view === "shared" ? shared : files.filter((f) => !superseded.has(f.root));
+    const list = source.filter((f) => {
       if (view === "sites" && !isDir(f)) return false;
       if (view === "private" && !f.isPrivate) return false;
       if (view === "expiring" && !expiring(f)) return false;
@@ -245,10 +327,10 @@ export function Drive() {
             : time(b) - time(a),
     );
     return view === "recent" ? list.slice(0, 20) : list;
-  }, [files, view, query, sort, head, expiring]);
+  }, [files, shared, view, query, sort, head, expiring]);
 
   const total = useMemo(() => files.reduce((s, f) => s + f.size, 0), [files]);
-  const sel = files.find((f) => f.root === selected) ?? null;
+  const sel = files.find((f) => f.root === selected) ?? shared.find((f) => f.root === selected) ?? null;
 
   if (!account || picking) {
     return (
@@ -320,6 +402,21 @@ export function Drive() {
         onChange={(e) => {
           chooseFolder([...(e.target.files ?? [])]);
           e.target.value = "";
+        }}
+      />
+
+      <input
+        ref={versionPicker}
+        type="file"
+        className="sr-only"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (!f || !versionOf) return;
+          if (f.size > MAX) return setNotice(`${f.name} is ${bytes(f.size)}. The Drive takes up to 64 MiB per upload.`);
+          setFolder(null);
+          setMinimized(false);
+          setUpload(f);
         }}
       />
 
@@ -537,8 +634,45 @@ export function Drive() {
                   <div key={i} className="h-11 animate-pulse rounded-lg bg-bg-2" />
                 ))}
               </div>
+            ) : view === "nfts" ? (
+              nfts === null ? (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="aspect-square animate-pulse rounded-xl bg-bg-2" />
+                  ))}
+                </div>
+              ) : nfts.length === 0 ? (
+                <Empty view="nfts" query="" onUpload={() => picker.current?.click()} onFolder={() => folderPicker.current?.click()} />
+              ) : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                  {nfts.map((n) => (
+                    <div key={`${n.collection}-${n.item}`} className="overflow-hidden rounded-xl bg-bg-2 ring-1 ring-sep">
+                      <div className="grid aspect-square place-items-center bg-surface">
+                        {n.image?.startsWith("ipfs://") ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={`/ipfs/${n.image.slice(7)}`} alt={n.name ?? ""} className="size-full object-cover" loading="lazy" />
+                        ) : (
+                          <Gem className="size-10 text-label-3" />
+                        )}
+                      </div>
+                      <div className="px-3 py-2">
+                        <div className="truncate text-[13px] font-medium">{n.name || "Untitled"}</div>
+                        <div className="text-[11px] text-label-2 tabular">
+                          Collection {n.collection} · #{n.item}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
             ) : shown.length === 0 ? (
-              <Empty view={view} query={query} onUpload={() => picker.current?.click()} onFolder={() => folderPicker.current?.click()} />
+              <Empty
+                view={view}
+                query={query}
+                onUpload={() => picker.current?.click()}
+                onFolder={() => folderPicker.current?.click()}
+                onInbox={account && !loadInbox(account.address) ? () => setSheet({ kind: "inbox" }) : undefined}
+              />
             ) : layout === "list" ? (
               <table className="w-full table-fixed text-left text-[13px]">
                 <thead className="text-[12px] text-label-2">
@@ -657,7 +791,20 @@ export function Drive() {
             onClick={(e) => e.stopPropagation()}
             aria-label="File details"
           >
-            <Details f={sel} head={head} onClose={() => setSelected(null)} />
+            <Details
+              f={sel}
+              head={head}
+              versions={localVersions(sel.root)}
+              onClose={() => setSelected(null)}
+              onNewVersion={() => {
+                setVersionOf({ root: sel.root, name: sel.name || "file" });
+                versionPicker.current?.click();
+              }}
+              onMint={() => setSheet({ kind: "mint", root: sel.root })}
+              onShare={() => setSheet({ kind: "share", root: sel.root })}
+              onFund={() => setSheet({ kind: "fund", root: sel.root })}
+              onSelect={setSelected}
+            />
           </motion.aside>
         )}
       </AnimatePresence>
@@ -700,6 +847,45 @@ export function Drive() {
                   }}
                 />
               )}
+              {!isDir(f) && !f.sharedBy && (
+                <MenuItem
+                  icon={History}
+                  label="Upload new version…"
+                  onClick={() => {
+                    setMenu(null);
+                    setVersionOf({ root: f.root, name: f.name || "file" });
+                    versionPicker.current?.click();
+                  }}
+                />
+              )}
+              {!isDir(f) && !f.isPrivate && (
+                <MenuItem
+                  icon={Gem}
+                  label="Mint as NFT…"
+                  onClick={() => {
+                    setMenu(null);
+                    setSheet({ kind: "mint", root: f.root });
+                  }}
+                />
+              )}
+              {f.isPrivate && !f.sharedBy && (
+                <MenuItem
+                  icon={Send}
+                  label="Share with a wallet…"
+                  onClick={() => {
+                    setMenu(null);
+                    setSheet({ kind: "share", root: f.root });
+                  }}
+                />
+              )}
+              <MenuItem
+                icon={HeartPulse}
+                label="Keep alive…"
+                onClick={() => {
+                  setMenu(null);
+                  setSheet({ kind: "fund", root: f.root });
+                }}
+              />
               <MenuItem
                 icon={Info}
                 label="Get Info"
@@ -749,6 +935,7 @@ export function Drive() {
           balance={balance}
           file={upload}
           folder={folder ?? undefined}
+          parent={versionOf ?? undefined}
           simulate={simulate}
           minimized={minimized}
           onMinimize={() => setMinimized(true)}
@@ -756,11 +943,23 @@ export function Drive() {
           onClose={() => {
             setUpload(null);
             setFolder(null);
+            setVersionOf(null);
             setMinimized(false);
           }}
           onDone={() => refresh()}
         />
       )}
+
+      {sheet &&
+        (() => {
+          const f = files.find((x) => x.root === sheet.root) ?? shared.find((x) => x.root === sheet.root);
+          const close = () => setSheet(null);
+          if (sheet.kind === "inbox") return <InboxSheet api={api} account={account} onClose={close} />;
+          if (!f) return null;
+          if (sheet.kind === "mint") return <MintSheet f={f} api={api} account={account} onClose={close} />;
+          if (sheet.kind === "share") return <ShareSheet f={f} api={api} account={account} onClose={close} />;
+          return <FundSheet f={f} api={api} account={account} onClose={close} />;
+        })()}
     </div>
   );
 }
@@ -773,6 +972,15 @@ function MenuItem({ icon: Icon, label, onClick, danger }: { icon: typeof Info; l
       className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[14px] transition-colors hover:bg-accent hover:text-white ${danger ? "text-red" : ""}`}
     >
       <Icon className="size-4" />
+      {label}
+    </button>
+  );
+}
+
+function ActionTile({ icon: Icon, label, onClick }: { icon: typeof Info; label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="flex flex-col items-center gap-1 rounded-xl bg-bg-2 px-2 py-2.5 text-label transition-colors hover:bg-fill">
+      <Icon className="size-[18px] text-accent" />
       {label}
     </button>
   );
@@ -801,17 +1009,37 @@ const EMPTY: Record<View, [string, string]> = {
   recent: ["Nothing recent.", "Files you store show up here."],
   sites: ["No websites yet.", "Upload a folder with an index.html, or run potdrive deploy ./dist. It's served from the chain at /ipfs/<cid>/."],
   private: ["No private files.", "Turn on Private when uploading. The file is encrypted on this device and the key lives only in its link."],
+  shared: ["Nothing shared with you yet.", "When someone shares a private file with your address, it appears here. Only this browser holds the key that opens it."],
+  nfts: ["No NFTs yet.", "Select an image and choose Mint as NFT. It's minted on Portaldot's native Nfts pallet with its media stored on Portaldot too."],
   expiring: ["Nothing expiring soon.", "Files with under two days of retention left show up here so you can renew them."],
 };
 
-function Empty({ view, query, onUpload, onFolder }: { view: View; query: string; onUpload: () => void; onFolder: () => void }) {
+function Empty({ view, query, onUpload, onFolder, onInbox }: { view: View; query: string; onUpload: () => void; onFolder: () => void; onInbox?: () => void }) {
   if (query) return <div className="py-24 text-center text-[15px] text-label-2">No files match &ldquo;{query}&rdquo;.</div>;
   const [title, body] = EMPTY[view];
   return (
     <div className="flex flex-col items-center py-20 text-center">
-      <DocIcon type={view === "sites" ? "DIR" : view === "private" ? "LOCK" : "FILE"} size={64} />
+      {view === "nfts" ? (
+        <span className="grid size-16 place-items-center rounded-2xl bg-accent-soft text-accent">
+          <Gem className="size-8" />
+        </span>
+      ) : (
+        <DocIcon type={view === "sites" ? "DIR" : view === "private" || view === "shared" ? "LOCK" : "FILE"} size={64} />
+      )}
       <div className="mt-5 text-[22px] font-semibold tracking-[-0.02em]">{title}</div>
       <p className="mt-2 max-w-md text-[15px] text-label-2">{body}</p>
+      {view === "shared" && onInbox && (
+        <div className="mt-6">
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              onInbox();
+            }}
+          >
+            <Users className="size-4" /> Receive shared files
+          </Button>
+        </div>
+      )}
       {(view === "all" || view === "sites") && (
         <div className="mt-6 flex gap-3">
           <Button
@@ -837,7 +1065,27 @@ function Empty({ view, query, onUpload, onFolder }: { view: View; query: string;
   );
 }
 
-function Details({ f, head, onClose }: { f: DriveFile; head: number | null; onClose: () => void }) {
+function Details({
+  f,
+  head,
+  versions,
+  onClose,
+  onNewVersion,
+  onMint,
+  onShare,
+  onFund,
+  onSelect,
+}: {
+  f: DriveFile;
+  head: number | null;
+  versions: { root: string; size: number; createdAt: number }[];
+  onClose: () => void;
+  onNewVersion: () => void;
+  onMint: () => void;
+  onShare: () => void;
+  onFund: () => void;
+  onSelect: (root: string) => void;
+}) {
   const { frac, tone } = expiryTone(f.expiresAt, head);
   const image = f.mime.startsWith("image/") && !f.mime.includes("svg") && !f.isPrivate;
   return (
@@ -864,6 +1112,15 @@ function Details({ f, head, onClose }: { f: DriveFile; head: number | null; onCl
           Open
         </button>
         <CopyButton text={linkOf(f)} label="Copy link" className="h-9 justify-center !rounded-full bg-fill text-[14px] !text-label hover:bg-fill-2" />
+      </div>
+
+      <div className="mt-3 grid grid-cols-3 gap-2 text-[12px]">
+        {!isDir(f) && !f.sharedBy && (
+          <ActionTile icon={History} label="New version" onClick={onNewVersion} />
+        )}
+        {!isDir(f) && !f.isPrivate && <ActionTile icon={Gem} label="Mint NFT" onClick={onMint} />}
+        {f.isPrivate && !f.sharedBy && <ActionTile icon={Send} label="Share" onClick={onShare} />}
+        <ActionTile icon={HeartPulse} label="Keep alive" onClick={onFund} />
       </div>
 
       <div className="mt-5 flex items-center gap-3 rounded-xl bg-bg-2 p-3">
@@ -897,7 +1154,34 @@ function Details({ f, head, onClose }: { f: DriveFile; head: number | null; onCl
           </dd>
         </div>
       </dl>
-      {f.isPrivate && (
+      {versions.length > 1 && (
+        <div className="mt-6">
+          <div className="mb-2 flex items-center gap-1.5 text-[13px] font-medium">
+            <History className="size-4 text-label-2" /> Versions
+          </div>
+          <ol className="overflow-hidden rounded-xl bg-bg-2">
+            {versions.map((v, i) => (
+              <li key={v.root}>
+                <button
+                  onClick={() => onSelect(v.root)}
+                  className={`flex w-full items-center gap-3 border-b border-sep px-3 py-2 text-left text-[13px] last:border-0 hover:bg-fill ${v.root === f.root ? "font-medium" : ""}`}
+                >
+                  <span className="w-7 shrink-0 text-label-2 tabular">v{versions.length - i}</span>
+                  <span className="flex-1 truncate">{relTime(v.createdAt)}</span>
+                  <span className="text-label-2 tabular">{bytes(v.size)}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+          <p className="mt-2 text-[11px] leading-snug text-label-3">Each version is its own CID. Blocks that didn&apos;t change are shared, so a new version only pays for what changed.</p>
+        </div>
+      )}
+      {f.sharedBy && (
+        <p className="mt-5 rounded-xl bg-bg-2 p-3 text-[12px] leading-relaxed text-label-2">
+          Shared with you by <span className="font-mono">{f.sharedBy.slice(0, 10)}…</span>. The key was sealed to your inbox and opened in this browser.
+        </p>
+      )}
+      {f.isPrivate && !f.sharedBy && (
         <p className="mt-5 rounded-xl bg-bg-2 p-3 text-[12px] leading-relaxed text-label-2">
           Encrypted on your device. Its key is saved in this browser and in the copied link, nowhere else.
         </p>

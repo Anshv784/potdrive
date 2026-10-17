@@ -31,7 +31,11 @@ export const DOCS: DocGroup[] = [
   {
     title: "Guides",
     items: [
+      { href: "/docs/sponsored", title: "Gasless uploads", summary: "Upload with 0 tPOT: a relay pays through Portaldot's MetaTx pallet.", keywords: "metatx meta transaction relay sponsor gasless free" },
+      { href: "/docs/versions", title: "Versions", summary: "New versions link to the old one and only pay for blocks that changed.", keywords: "version history parent dedup" },
       { href: "/docs/private-files", title: "Private files", summary: "Client-side AES-256-GCM, the envelope format and share links.", keywords: "encryption aes gcm key fragment envelope" },
+      { href: "/docs/sharing", title: "Share with a wallet", summary: "Seal a private file's key to another address with X25519 inbox keys.", keywords: "share inbox x25519 ecies recipient" },
+      { href: "/docs/nfts", title: "NFTs", summary: "Mint on Portaldot's native Nfts pallet with media stored on Portaldot.", keywords: "nft nfts pallet mint collection metadata" },
       { href: "/docs/websites", title: "Host a website", summary: "Deploy a static site as a UnixFS directory and serve it from the chain.", keywords: "deploy static site folder index.html sandbox" },
       { href: "/docs/keep-alive", title: "Keep-alive", summary: "Prepaid renewals and the keeper that spends them.", keywords: "keeper cron renewal prepaid" },
     ],
@@ -41,6 +45,8 @@ export const DOCS: DocGroup[] = [
     items: [
       { href: "/docs/sdk", title: "SDK", summary: "Every exported function, with signatures and examples.", keywords: "typescript api prepareFile uploadFile getFile readRange" },
       { href: "/docs/cli", title: "CLI", summary: "put, get, deploy, info, renew and ls.", keywords: "command line terminal" },
+      { href: "/docs/react", title: "React", summary: "usePotFile, <PotImage> and <PotVideo>: verified files in any React app.", keywords: "react hook component npm package" },
+      { href: "/docs/mcp", title: "MCP server", summary: "Let AI agents read, store and deploy on Portaldot.", keywords: "mcp ai agent claude cursor tools" },
       { href: "/docs/gateway", title: "Gateway API", summary: "HTTP routes, Range requests, headers and status codes.", keywords: "http ipfs range headers 206" },
       { href: "/docs/registry", title: "Registry contract", summary: "PotDriveRegistry on Revive: functions, events and storage layout.", keywords: "solidity revive evm contract deposit events" },
       { href: "/docs/security", title: "Security model", summary: "Threats, what PotDrive does about each, and what it doesn't.", keywords: "threat xss sandbox keys" },

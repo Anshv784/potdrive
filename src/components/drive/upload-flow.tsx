@@ -37,6 +37,7 @@ export function UploadFlow({
   balance,
   file,
   folder,
+  parent,
   simulate,
   onClose,
   onDone,
@@ -50,6 +51,8 @@ export function UploadFlow({
   file: File;
   // When set, `file` is the first file and the upload is a whole folder (UnixFS directory).
   folder?: { name: string; files: File[] };
+  // Upload as a new version of an existing file.
+  parent?: { root: string; name: string };
   simulate?: boolean;
   onClose: () => void;
   onDone: (r: UploadResult, f: PreparedFile) => void;
@@ -94,7 +97,7 @@ export function UploadFlow({
         p = await prepareFolder(entries, { name: folder.name });
       } else {
         const data = new Uint8Array(await file.arrayBuffer());
-        p = await prepareFile(data, { name: file.name, mime: file.type, private: isPrivate });
+        p = await prepareFile(data, { name: file.name, mime: file.type, private: isPrivate, parent: parent?.root });
       }
       if (!live) return;
       setPrepared(p);
@@ -108,7 +111,7 @@ export function UploadFlow({
     return () => {
       live = false;
     };
-  }, [file, folder, isPrivate]);
+  }, [file, folder, isPrivate, parent?.root]);
 
   // estimate base fees once per prepared file
   const [base, setBase] = useState<Estimate | null>(null);
@@ -143,7 +146,22 @@ export function UploadFlow({
     return () => clearInterval(id);
   }, [phase]);
 
-  const short = balance !== null && estimate !== null && balance < estimate.total;
+  // Gasless uploads through the MetaTx relay.
+  const [relay, setRelay] = useState<{ enabled: boolean; maxBytes: number } | null>(null);
+  const [pay, setPay] = useState<"wallet" | "sponsored">("wallet");
+  useEffect(() => {
+    fetch("/api/relay")
+      .then((r) => r.json())
+      .then(setRelay)
+      .catch(() => setRelay({ enabled: false, maxBytes: 0 }));
+  }, []);
+  const canSponsor = !!relay?.enabled && !!estimate && estimate.newBytes <= relay.maxBytes;
+  const walletShort = balance !== null && estimate !== null && balance < estimate.total;
+  useEffect(() => {
+    if (canSponsor && walletShort) setPay("sponsored");
+  }, [canSponsor, walletShort]);
+  const sponsored = pay === "sponsored" && canSponsor;
+  const short = !sponsored && walletShort;
 
   const onEvent = (e: UploadEvent) => {
     if (e.type === "stage") setStage(e.stage);
@@ -174,17 +192,35 @@ export function UploadFlow({
         r = await fakeUpload(prepared, keepAlive, onEvent);
       } else {
         if (!api) throw new Error("Not connected to Portaldot");
-        const { uploadFile } = await import("@potdrive/sdk/upload");
         const signer = await signerOf(account.source);
-        r = await uploadFile({
-          api,
-          file: prepared,
-          owner: { address: account.address, signer },
-          registry: REGISTRY,
-          keepAlive,
-          sessions: sessionStore,
-          onEvent,
-        });
+        if (sponsored) {
+          const [{ uploadSponsored }, { stringToU8a, u8aToHex }] = await Promise.all([import("@potdrive/sdk/sponsored"), import("@polkadot/util")]);
+          r = await uploadSponsored({
+            api,
+            file: prepared,
+            relayUrl: "/api/relay",
+            owner: {
+              address: account.address,
+              signRaw: async (message) => {
+                if (!signer.signRaw) throw new Error("This wallet can't sign messages");
+                const { signature } = await signer.signRaw({ address: account.address, data: u8aToHex(stringToU8a(message)), type: "bytes" });
+                return signature;
+              },
+            },
+            onEvent,
+          });
+        } else {
+          const { uploadFile } = await import("@potdrive/sdk/upload");
+          r = await uploadFile({
+            api,
+            file: prepared,
+            owner: { address: account.address, signer },
+            registry: REGISTRY,
+            keepAlive,
+            sessions: sessionStore,
+            onEvent,
+          });
+        }
       }
       saveLocalFile({
         root: r.root,
@@ -197,6 +233,8 @@ export function UploadFlow({
         owner: account.address,
         createdAt: Date.now(),
         expiresAt: Math.max(0, ...r.blocks.map((b) => b.blockNumber ?? 0)) + 100_800 + periods * 100_800 || undefined,
+        parent: parent?.root,
+        sponsored,
       });
       setResult(r);
       setPhase("done");
@@ -245,7 +283,10 @@ export function UploadFlow({
         role="status"
       >
         <div className="flex items-center justify-between bg-bg-2 px-4 py-2.5">
-          <span className="text-[13px] font-semibold">{phase === "done" ? "1 upload complete" : phase === "error" ? "1 upload stopped" : "Uploading 1 item"}</span>
+          <span className="text-[13px] font-semibold">
+            {phase === "done" ? "1 upload complete" : phase === "error" ? "1 upload stopped" : "Uploading 1 item"}
+            {phase === "running" && <span className="ml-1.5 font-normal text-label-2 tabular">{(elapsed / 1000).toFixed(0)}s</span>}
+          </span>
           <div className="flex items-center gap-1">
             <button onClick={onExpand} className="rounded-full px-2 py-0.5 text-[13px] text-link hover:bg-accent-soft">
               Details
@@ -327,6 +368,12 @@ export function UploadFlow({
             </div>
           </div>
 
+          {parent && (
+            <div className="rounded-xl bg-accent-soft px-4 py-3 text-center text-[14px]">
+              New version of <span className="font-semibold">{parent.name}</span>. Unchanged blocks are reused from the previous version.
+            </div>
+          )}
+
           <AnimatePresence mode="wait">
             {(phase === "review" || phase === "preparing") && (
               <motion.div key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="space-y-6">
@@ -354,11 +401,39 @@ export function UploadFlow({
                   </div>
                 </Group>
 
-                <Group title="Cost" footer="The upload key gets a 15% buffer over the estimate. Whatever it doesn't spend comes back to you at the end.">
-                  <Row label="Storage" sub="Paid per block by the upload key" detail={estimate && !estimating ? `${formatPot(estimate.storeFees, 2)} tPOT` : <Spinner className="size-4 text-label-3" />} />
-                  {REGISTRY && <Row label="Registry record" sub="Fee and storage deposit" detail={estimate ? `${formatPot(estimate.registryFee + estimate.registryDeposit, 2)} tPOT` : "…"} />}
-                  {keepAlive > 0n && <Row label="Keep-alive" sub={`${periods} renewals, refundable`} detail={`${formatPot(keepAlive, 2)} tPOT`} />}
-                  <Row label={<span className="font-semibold">Total, at most</span>} detail={<span className="font-semibold text-label">{estimate ? `${formatPot(estimate.total, 2)} tPOT` : "…"}</span>} />
+                {relay?.enabled && (
+                  <Group
+                    title="Pay with"
+                    footer={
+                      canSponsor
+                        ? sponsored
+                          ? "PotDrive pays the fees through Portaldot's MetaTx pallet. You sign one readable authorization; nothing leaves your balance. Sponsored files are not registered, so keep-alive is off."
+                          : "Sponsored uploads cover up to " + bytes(relay.maxBytes) + " of new data, paid by PotDrive through the MetaTx pallet."
+                        : `Sponsorship covers up to ${bytes(relay.maxBytes)} of new data. This upload is larger.`
+                    }
+                  >
+                    <div className="px-3 py-2.5">
+                      <Segmented
+                        label="Pay with"
+                        value={sponsored ? "sponsored" : "wallet"}
+                        onChange={(v) => setPay(v as "wallet" | "sponsored")}
+                        options={[
+                          { value: "wallet", label: "My wallet" },
+                          { value: "sponsored", label: "Sponsored, free", disabled: !canSponsor },
+                        ]}
+                      />
+                    </div>
+                  </Group>
+                )}
+
+                <Group title="Cost" footer={sponsored ? "Fees are paid by the PotDrive relay." : "The upload key gets a 15% buffer over the estimate. Whatever it doesn't spend comes back to you at the end."}>
+                  <Row label="Storage" sub={sponsored ? "Paid by the relay, per block" : "Paid per block by the upload key"} detail={estimate && !estimating ? `${formatPot(estimate.storeFees, 2)} tPOT` : <Spinner className="size-4 text-label-3" />} />
+                  {REGISTRY && !sponsored && <Row label="Registry record" sub="Fee and storage deposit" detail={estimate ? `${formatPot(estimate.registryFee + estimate.registryDeposit, 2)} tPOT` : "…"} />}
+                  {keepAlive > 0n && !sponsored && <Row label="Keep-alive" sub={`${periods} renewals, refundable`} detail={`${formatPot(keepAlive, 2)} tPOT`} />}
+                  <Row
+                    label={<span className="font-semibold">{sponsored ? "You pay" : "Total, at most"}</span>}
+                    detail={<span className="font-semibold text-label">{sponsored ? "0 tPOT" : estimate ? `${formatPot(estimate.total, 2)} tPOT` : "…"}</span>}
+                  />
                 </Group>
 
                 {estimate?.alreadyStored && (
@@ -381,7 +456,9 @@ export function UploadFlow({
                   <Button size="lg" className="w-full" onClick={start} disabled={!estimate || !prepared || phase === "preparing" || short}>
                     {phase === "preparing" ? "Hashing on this device…" : !estimate ? "Estimating…" : "Store on Portaldot"}
                   </Button>
-                  <p className="mt-2 text-center text-[13px] text-label-2">You&apos;ll approve one transaction in your wallet.</p>
+                  <p className="mt-2 text-center text-[13px] text-label-2">
+                    {sponsored ? "You'll sign one authorization message in your wallet. No transaction fee." : "You'll approve one transaction in your wallet."}
+                  </p>
                 </div>
               </motion.div>
             )}

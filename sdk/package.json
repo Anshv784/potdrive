@@ -1,0 +1,59 @@
+{
+  "name": "@potdrive/sdk",
+  "version": "0.1.0",
+  "description": "Store files in Portaldot's TransactionStorage: FastCDC chunking, blake2b IPFS CIDs, one-signature uploads, verified reads.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Anshv784/potdrive",
+    "directory": "sdk"
+  },
+  "homepage": "https://potdrive.anshverma.tech/docs/sdk",
+  "keywords": [
+    "portaldot",
+    "substrate",
+    "polkadot",
+    "ipfs",
+    "storage",
+    "transaction-storage",
+    "fastcdc"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && bun build src/index.ts react/index.tsx --root . --outdir dist --target browser --format esm --splitting --packages external && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@ipld/dag-pb": "^4.1.3",
+    "@noble/curves": "^1.9.7",
+    "@noble/hashes": "^2.0.0",
+    "@polkadot/api": "^16.4.8",
+    "@polkadot/keyring": "^14.0.3",
+    "@polkadot/util": "^14.0.3",
+    "@polkadot/util-crypto": "^14.0.3",
+    "ipfs-unixfs": "^11.2.5",
+    "multiformats": "^13.4.1",
+    "viem": "^2.37.0"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  }
+}

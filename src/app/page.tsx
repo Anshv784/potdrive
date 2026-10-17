@@ -1,4 +1,4 @@
-import { Check, Cpu, FileLock2, GitCompareArrows, Globe, KeyRound, Layers, PlayCircle, RefreshCw, ScanSearch, ShieldCheck, Minus } from "lucide-react";
+import { Check, Cpu, FileLock2, Gem, GitCompareArrows, Globe, KeyRound, Layers, PlayCircle, RefreshCw, ScanSearch, Send, ShieldCheck, Minus, Zap } from "lucide-react";
 import { Footer, Nav } from "@/components/nav";
 import { ArchiveDemo } from "@/components/archive-demo";
 import { StorageCount } from "@/components/storage-count";
@@ -174,6 +174,9 @@ export default function Home() {
               [GitCompareArrows, "Versions pay for changes only.", "Content-defined chunking keeps chunk boundaries stable across edits. Insert 1 KiB into a 16 MiB file and FastCDC stores 609 KiB again; fixed chunks would store all 16 MiB."],
               [Globe, "Websites, served from the chain.", "potdrive deploy ./dist stores a UnixFS directory. The gateway resolves paths block by block and runs the site in a sandboxed origin."],
               [PlayCircle, "Streaming with Range.", "The gateway maps a byte range to just the chunks that cover it, so video seeks without downloading what came before."],
+              [Zap, "Gasless with MetaTx.", "No tPOT yet? Sign one authorization and a relay pays the fees through Portaldot's MetaTx pallet."],
+              [Gem, "NFTs, fully on Portaldot.", "Mint on the native Nfts pallet in one signature. The media is stored by Portaldot itself, not a pinning service."],
+              [Send, "Share with a wallet.", "Seal a private file's key to another address with X25519 inbox keys. No link to leak."],
               [FileLock2, "Private by choice.", "AES-256-GCM in your browser before upload. The chain only sees ciphertext. The key lives in the link, after the #."],
               [RefreshCw, "Keep-alive.", "Prepay renewals and a daily keeper renews your file before Portaldot drops it, reimbursed exactly, capped per file."],
               [ShieldCheck, "Verified everywhere.", "The Drive, the gateway, the SDK and the CLI all re-hash every block before they use it."],

@@ -102,6 +102,23 @@ import { getFile } from "@potdrive/sdk/fetch";`}
         Recent blocks, whether each carried <code>checkProof</code> or <code>ProofChecked</code>, and when the next proof is due.
       </Api>
 
+      <H2 id="more">Sponsored uploads, sharing, NFTs</H2>
+      <Api id="uploadSponsored" signature="uploadSponsored({ api, file, owner: { address, signRaw }, relayUrl, onEvent }): Promise<UploadResult>">
+        Gasless upload through the MetaTx relay. See <a href="/docs/sponsored">Gasless uploads</a>.
+      </Api>
+      <Api id="signMetaTx" signature="signMetaTx(api, keyPair, call, nonce?): { metaTx, hex, length }">
+        Builds and signs a <code>PalletMetaTxMetaTx</code> for Portaldot&apos;s extension pipeline.
+      </Api>
+      <Api id="sealToInbox" signature="sealToInbox(fileKey, inboxPublicKey, root) / openFromInbox(sealed, inboxPrivateKey, root)">
+        X25519 + HKDF-SHA256 + AES-256-GCM, with the root bound as AAD. <code>newInbox()</code> makes a key pair.
+      </Api>
+      <Api id="planMint" signature="planMint(api, owner, { name, image, url?, mime? }) → mintCalls(api, owner, plan) → ownedNfts(api, owner)">
+        Native Nfts pallet minting in one batch, with metadata kept under the 256-byte StringLimit.
+      </Api>
+      <Api id="readVersions" signature="readVersions(registry, root): Promise<{ root, size, block }[]>">
+        Follows <code>parent</code> links in <code>Registered</code> logs, newest first.
+      </Api>
+
       <H2 id="low-level">Low level</H2>
       <Api id="cidFor" signature="cidFor(bytes, codec = RAW): CID">
         CIDv1 with a blake2b-256 multihash, the digest TransactionStorage indexes.
