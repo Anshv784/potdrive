@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { motion } from "motion/react";
+import { CornerDownLeft, FileText, Hash, Search, X } from "lucide-react";
 import { DOCS, DOC_LIST } from "@/lib/docs-nav";
+import INDEX_JSON from "@/lib/docs-index.json";
 
 export function Sidebar() {
   const path = usePathname();
@@ -41,7 +44,9 @@ export function Toc() {
   const [items, setItems] = useState<{ id: string; text: string; level: number }[]>([]);
   const [active, setActive] = useState("");
   useEffect(() => {
-    const hs = [...document.querySelectorAll<HTMLElement>("article h2[id], article h3[id], article section[id]")].filter((h) => h.tagName !== "SECTION" || h.dataset.toc);
+    const hs = [...document.querySelectorAll<HTMLElement>("article h2[id], article h3[id], article section[id]")].filter(
+      (h) => h.tagName !== "SECTION" || h.dataset.toc,
+    );
     setItems(hs.map((h) => ({ id: h.id, text: h.textContent ?? "", level: h.tagName === "H3" ? 3 : 2 })));
     const io = new IntersectionObserver(
       (entries) => {
@@ -97,9 +102,79 @@ export function SearchButton() {
         className="flex h-9 w-full items-center gap-2 rounded-lg bg-bg-2 px-3 text-[14px] text-label-2 transition-colors duration-200 hover:bg-fill"
       >
         <Search className="size-4" /> Search docs
-        <kbd className="ml-auto rounded-md bg-surface px-1.5 font-sans text-[11px] text-label-3 ring-1 ring-sep">{mac ? "⌘K" : "Ctrl K"}</kbd>
+        <kbd className="ml-auto rounded-md bg-surface px-1.5 font-sans text-[11px] text-label-3 ring-1 ring-sep">
+          {mac ? "⌘K" : "Ctrl K"}
+        </kbd>
       </button>
-      {open && <SearchDialog onClose={() => setOpen(false)} />}
+      {open && createPortal(<SearchDialog onClose={() => setOpen(false)} />, document.body)}
+    </>
+  );
+}
+
+interface Hit {
+  href: string;
+  page: string;
+  title: string;
+  snippet: string;
+  section: boolean;
+}
+
+const INDEX = INDEX_JSON as { href: string; page: string; title: string; text: string }[];
+
+// Ranks sections by how many query words they contain, weighting titles. Every word must match somewhere.
+function search(q: string): Hit[] {
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length)
+    return DOC_LIST.map((d) => ({ href: d.href, page: d.title, title: d.title, snippet: d.summary, section: false }));
+  const keywords = new Map(DOC_LIST.map((d) => [d.href, (d.keywords ?? "").toLowerCase()]));
+  return INDEX.map((x) => {
+    const title = x.title.toLowerCase();
+    const page = x.page.toLowerCase();
+    const text = x.text.toLowerCase();
+    const kw = x.href.includes("#") ? "" : (keywords.get(x.href) ?? "");
+    let score = 0;
+    for (const w of words) {
+      const s =
+        (title.startsWith(w) ? 8 : title.includes(w) ? 5 : 0) +
+        (page.includes(w) ? 2 : 0) +
+        (kw.includes(w) ? 3 : 0) +
+        (text.includes(w) ? 1 : 0);
+      if (!s) return null;
+      score += s;
+    }
+    const at = Math.max(0, text.indexOf(words.find((w) => text.includes(w)) ?? ""));
+    let from = Math.max(0, at - 50);
+    if (from > 0) from = x.text.indexOf(" ", from) + 1 || from;
+    const snippet = (from > 0 ? "…" : "") + x.text.slice(from, from + 150) + (x.text.length > from + 150 ? "…" : "");
+    return {
+      hit: { href: x.href, page: x.page, title: x.title, snippet, section: x.href.includes("#") },
+      score: score + (x.href.includes("#") ? 0 : 1),
+    };
+  })
+    .filter((r): r is { hit: Hit; score: number } => !!r)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 12)
+    .map((r) => r.hit);
+}
+
+function Mark({ text, q }: { text: string; q: string }) {
+  const words = q
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 1);
+  if (!words.length) return <>{text}</>;
+  const re = new RegExp(`(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "gi");
+  return (
+    <>
+      {text.split(re).map((part, i) =>
+        i % 2 ? (
+          <mark key={i} className="rounded-sm bg-accent/15 px-0.5 text-accent">
+            {part}
+          </mark>
+        ) : (
+          part
+        ),
+      )}
     </>
   );
 }
@@ -109,28 +184,43 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
   const input = useRef<HTMLInputElement>(null);
-  useEffect(() => input.current?.focus(), []);
-  const results = useMemo(() => {
-    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-    if (!words.length) return DOC_LIST;
-    return DOC_LIST.map((d) => {
-      const hay = `${d.title} ${d.summary} ${d.keywords ?? ""}`.toLowerCase();
-      const score = words.reduce((s, w) => s + (d.title.toLowerCase().includes(w) ? 3 : hay.includes(w) ? 1 : -100), 0);
-      return { d, score };
-    })
-      .filter((r) => r.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map((r) => r.d);
-  }, [q]);
+  const list = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    input.current?.focus();
+    const y = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = y;
+    };
+  }, []);
+  const results = useMemo(() => search(q), [q]);
+  useEffect(() => {
+    list.current?.querySelector(`[data-i="${sel}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [sel]);
   const go = (href: string) => {
     onClose();
     router.push(href);
   };
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 pt-[12vh]" onClick={onClose} role="dialog" aria-modal aria-label="Search documentation">
-      <div className="material w-full max-w-xl overflow-hidden rounded-2xl shadow-float ring-1 ring-sep" onClick={(e) => e.stopPropagation()}>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.15 }}
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-[10vh] backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal
+      aria-label="Search documentation"
+    >
+      <motion.div
+        initial={{ opacity: 0, y: -8, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+        className="flex max-h-[76vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-surface shadow-float ring-1 ring-sep"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center gap-3 border-b border-sep px-4">
-          <Search className="size-5 text-label-2" />
+          <Search className="size-5 shrink-0 text-accent" />
           <input
             ref={input}
             value={q}
@@ -149,30 +239,88 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
               }
               if (e.key === "Enter" && results[sel]) go(results[sel].href);
             }}
-            placeholder="Search PotDrive docs"
+            placeholder="Search the docs: fees, renew, private, MetaTx…"
             aria-label="Search"
-            className="h-14 flex-1 bg-transparent text-[17px] outline-none placeholder:text-label-3 focus-visible:outline-none"
+            role="combobox"
+            aria-expanded
+            aria-controls="docs-results"
+            aria-activedescendant={results[sel] ? `docs-hit-${sel}` : undefined}
+            className="h-14 min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-label-3 focus:outline-none focus-visible:outline-none"
           />
-          <button onClick={onClose} aria-label="Close" className="rounded-full p-1 text-label-3 hover:bg-fill">
+          {q && (
+            <button onClick={() => setQ("")} className="rounded-md px-2 py-1 text-[12px] text-label-2 hover:bg-fill">
+              Clear
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="grid size-7 place-items-center rounded-full text-label-3 hover:bg-fill hover:text-label"
+          >
             <X className="size-4" />
           </button>
         </div>
-        <ul className="max-h-[50vh] overflow-y-auto p-2">
-          {results.length === 0 && <li className="px-3 py-6 text-center text-[15px] text-label-2">No results for &ldquo;{q}&rdquo;</li>}
-          {results.map((d, i) => (
-            <li key={d.href}>
+
+        <ul ref={list} id="docs-results" role="listbox" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
+          {!q && <li className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-label-3">All pages</li>}
+          {results.length === 0 && (
+            <li className="px-3 py-10 text-center text-[14px] text-label-2">
+              Nothing matches &ldquo;{q}&rdquo;. Try a shorter word, like <em>fee</em> or <em>renew</em>.
+            </li>
+          )}
+          {results.map((r, i) => (
+            <li key={r.href} id={`docs-hit-${i}`} role="option" aria-selected={i === sel} data-i={i}>
               <button
-                onMouseEnter={() => setSel(i)}
-                onClick={() => go(d.href)}
-                className={`w-full rounded-lg px-3 py-2.5 text-left ${i === sel ? "bg-accent-soft" : ""}`}
+                onMouseMove={() => setSel(i)}
+                onClick={() => go(r.href)}
+                className={`flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors duration-100 ${i === sel ? "bg-accent-soft" : ""}`}
               >
-                <div className="text-[15px] font-medium">{d.title}</div>
-                <div className="text-[13px] text-label-2">{d.summary}</div>
+                <span
+                  className={`mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg ${i === sel ? "bg-accent text-white" : "bg-fill text-label-2"}`}
+                >
+                  {r.section ? <Hash className="size-3.5" /> : <FileText className="size-3.5" />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-baseline gap-2">
+                    <span className="truncate text-[14px] font-medium">
+                      <Mark text={r.title} q={q} />
+                    </span>
+                    {r.section && <span className="shrink-0 truncate text-[12px] text-label-3">in {r.page}</span>}
+                  </span>
+                  <span className="mt-0.5 line-clamp-2 block text-[13px] leading-snug text-label-2">
+                    <Mark text={r.snippet} q={q} />
+                  </span>
+                </span>
+                {i === sel && <CornerDownLeft className="mt-1.5 size-3.5 shrink-0 text-accent" />}
               </button>
             </li>
           ))}
         </ul>
-      </div>
-    </div>
+
+        <div className="hidden items-center gap-4 border-t border-sep bg-bg-2 px-4 py-2 text-[11px] text-label-3 sm:flex">
+          <span className="inline-flex items-center gap-1">
+            <Kbd>↑</Kbd>
+            <Kbd>↓</Kbd> to move
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Kbd>↵</Kbd> to open
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Kbd>esc</Kbd> to close
+          </span>
+          <span className="ml-auto">
+            {q ? `${results.length} result${results.length === 1 ? "" : "s"}` : `${DOC_LIST.length} pages`}
+          </span>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function Kbd({ children }: { children: ReactNode }) {
+  return (
+    <kbd className="grid h-5 min-w-5 place-items-center rounded bg-surface px-1 font-sans text-[11px] text-label-2 ring-1 ring-sep">
+      {children}
+    </kbd>
   );
 }

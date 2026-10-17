@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
-import { Check } from "lucide-react";
+import { Check, Copy, Lock, Upload } from "lucide-react";
 import { buildFileDag } from "@potdrive/sdk/dag";
 import { CHUNK_SIZE } from "@potdrive/sdk/network";
 import { shortCid } from "@potdrive/sdk/cid";
@@ -28,6 +28,28 @@ interface Doc {
 }
 
 const MAX_SLIPS = 6;
+const B32 = "abcdefghijklmnopqrstuvwxyz234567";
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+// Flickers through random base32 before landing on the real hash, like it's being computed.
+function Scramble({ text, on }: { text: string; on: boolean }) {
+  const [out, setOut] = useState(text);
+  useEffect(() => {
+    if (!on) return;
+    let n = 0;
+    const id = setInterval(() => {
+      n++;
+      const keep = Math.floor((n / 9) * text.length);
+      setOut(text.slice(0, keep) + [...text.slice(keep)].map((c) => (c === "…" ? c : B32[(Math.random() * 32) | 0])).join(""));
+      if (n >= 9) {
+        clearInterval(id);
+        setOut(text);
+      }
+    }, 34);
+    return () => clearInterval(id);
+  }, [text, on]);
+  return <>{on ? out : "·".repeat(Math.min(text.length, 22))}</>;
+}
 
 function sample(): Uint8Array {
   // A deterministic 3.4 MiB "PDF" so the first visit always shows a multi-block file.
@@ -55,6 +77,7 @@ export function ArchiveDemo() {
   const [doc, setDoc] = useState<Doc | null>(null);
   const [revealed, setRevealed] = useState(0);
   const [over, setOver] = useState(false);
+  const [copied, setCopied] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -122,71 +145,141 @@ export function ArchiveDemo() {
         />
       </div>
 
-      <div className="grid gap-0 md:grid-cols-[15rem_1fr]">
+      <div className="grid gap-0 md:grid-cols-[17rem_1fr]">
         {/* file */}
-        <div className="flex flex-col items-center justify-center border-b border-sep px-6 py-8 md:border-b-0 md:border-r">
+        <div className="relative flex flex-col items-center justify-center gap-5 border-b border-sep px-6 py-8 md:border-b-0 md:border-r">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-60 [background-image:radial-gradient(var(--sep)_1px,transparent_1px)] [background-size:14px_14px]"
+          />
           <AnimatePresence mode="wait">
             {doc && (
               <motion.div
                 key={doc.root}
-                initial={{ opacity: 0, scale: 0.92 }}
-                animate={{ opacity: 1, scale: 1 }}
+                initial={{ opacity: 0, y: 8, scale: 0.94 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-                className="flex flex-col items-center text-center"
+                transition={{ duration: 0.5, ease: EASE }}
+                className="relative flex w-full flex-col items-center text-center"
               >
-                <DocIcon type={mimeLabel(doc.mime, doc.name)} size={64} />
-                <div className="mt-3 max-w-[12rem] truncate text-[15px] font-medium">{doc.name}</div>
+                <motion.div animate={complete ? { y: [0, -4, 0] } : {}} transition={{ duration: 0.6, ease: EASE }}>
+                  <DocIcon type={mimeLabel(doc.mime, doc.name)} size={60} />
+                </motion.div>
+                <div className="mt-3 max-w-[14rem] truncate text-[15px] font-semibold">{doc.name}</div>
                 <div className="text-[13px] text-label-2 tabular">{bytes(doc.size)}</div>
+
+                {/* the file as a byte strip, cut into blocks */}
+                <div className="mt-5 w-full">
+                  <div className="flex h-3 w-full gap-[3px]">
+                    {doc.slips
+                      .filter((x) => x.kind === "chunk")
+                      .map((x) => (
+                        <motion.span
+                          key={x.i}
+                          className="h-full rounded-[3px]"
+                          style={{ flexGrow: x.size }}
+                          initial={{ backgroundColor: "var(--fill-2)", scaleY: 0.6 }}
+                          animate={revealed > x.i ? { backgroundColor: "var(--green)", scaleY: 1 } : { backgroundColor: "var(--fill-2)", scaleY: 0.6 }}
+                          transition={{ duration: 0.35, ease: EASE }}
+                        />
+                      ))}
+                  </div>
+                  <div className="mt-2 flex justify-between font-mono text-[11px] text-label-3">
+                    <span>0</span>
+                    <span>{bytes(doc.size)}</span>
+                  </div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
-          <AnimatePresence>
-            {complete && (
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-green-soft px-2.5 py-1 text-[12px] font-medium text-green"
-              >
-                <Check className="size-3.5" strokeWidth={3} /> Addressed
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <div className="relative h-7">
+            <AnimatePresence mode="wait">
+              {complete ? (
+                <motion.div
+                  key="ok"
+                  initial={{ opacity: 0, y: 6, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.4, ease: EASE }}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-green-soft px-3 py-1 text-[12px] font-semibold text-green"
+                >
+                  <Check className="size-3.5" strokeWidth={3} /> Content addressed
+                </motion.div>
+              ) : (
+                <motion.div key="wait" exit={{ opacity: 0 }} className="inline-flex items-center gap-2 px-3 py-1 text-[12px] text-label-3">
+                  <span className="size-1.5 animate-pulse rounded-full bg-accent" /> Hashing in your browser
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
         {/* blocks */}
-        <div className="p-4 sm:p-5">
-          <div className="text-[13px] text-label-2">
-            {doc ? `${doc.slips.filter((s) => s.kind === "chunk").length} × 1 MiB blocks${doc.slips.some((s) => s.kind === "root") ? " + 1 root" : ""}` : "Reading…"}
+        <div className="p-4 sm:p-6">
+          <div className="flex items-baseline justify-between">
+            <div className="text-[13px] font-medium text-label-2">
+              {doc ? `${doc.slips.filter((x) => x.kind === "chunk").length} blocks${doc.slips.some((x) => x.kind === "root") ? " + 1 root" : ""}` : "Reading…"}
+            </div>
+            <div className="font-mono text-[11px] text-label-3">≤ 1 MiB each</div>
           </div>
-          <ol className="mt-2 overflow-hidden rounded-xl bg-bg-2">
-            {shown.map((s, idx) => {
+          <ol className="mt-3 space-y-1.5">
+            {shown.map((x, idx) => {
               const on = revealed > idx;
+              const root = x.kind === "root";
               return (
-                <li key={`${doc?.root}-${s.i}`} className="flex items-center gap-3 border-b border-sep px-3.5 py-2.5 last:border-0">
+                <motion.li
+                  key={`${doc?.root}-${x.i}`}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.4, delay: idx * 0.04, ease: EASE }}
+                  className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 ring-1 transition-colors duration-300 ${
+                    on ? (root ? "bg-accent/[0.07] ring-accent/25" : "bg-bg-2 ring-transparent hover:ring-sep") : "bg-bg-2/60 ring-transparent"
+                  }`}
+                >
                   <span
-                    className={`grid size-5 shrink-0 place-items-center rounded-full transition-colors duration-300 ${on ? (s.kind === "root" ? "bg-accent" : "bg-green") : "bg-fill-2"}`}
+                    className={`grid size-6 shrink-0 place-items-center rounded-lg font-mono text-[11px] font-semibold transition-colors duration-300 ${
+                      on ? (root ? "bg-accent text-white" : "bg-green text-white") : "bg-fill-2 text-label-3"
+                    }`}
                   >
-                    {on && <Check className="size-3 text-white" strokeWidth={3.5} />}
+                    {on ? <Check className="size-3.5" strokeWidth={3.5} /> : root ? "R" : x.i + 1}
                   </span>
-                  <span className="w-12 shrink-0 text-[13px] font-medium">{s.kind === "root" ? "Root" : `Block ${s.i + 1}`}</span>
-                  <span className={`min-w-0 flex-1 truncate font-mono text-[12px] transition-colors duration-300 ${on ? "text-label-2" : "text-label-3/50"}`}>
-                    {on ? shortCid(s.cid, 12, 8) : "hashing…"}
+                  <span className="w-14 shrink-0 text-[13px] font-medium">{root ? "Root" : `Block ${x.i + 1}`}</span>
+                  <span className={`min-w-0 flex-1 truncate font-mono text-[12px] ${on ? "text-label-2" : "text-label-3/60"}`}>
+                    <Scramble text={shortCid(x.cid, 12, 8)} on={on} />
                   </span>
-                  <span className="hidden shrink-0 text-[12px] text-label-3 tabular sm:inline">{bytes(s.size)}</span>
-                </li>
+                  <span className="hidden shrink-0 rounded-md bg-fill px-1.5 py-0.5 font-mono text-[11px] text-label-2 tabular sm:inline">
+                    {root ? "links" : bytes(x.size)}
+                  </span>
+                </motion.li>
               );
             })}
-            {hidden > 0 && <li className="px-3.5 py-2 text-[12px] text-label-3">and {hidden} more</li>}
+            {hidden > 0 && <li className="px-3 py-1.5 text-[12px] text-label-3">and {hidden} more</li>}
           </ol>
 
-          <div className="mt-4">
-            <div className="text-[13px] text-label-2">Content ID · blake2b-256</div>
-            <div className="mt-1 break-all font-mono text-[12px] leading-relaxed">
-              {complete ? doc!.root : <span className="text-label-3">Computing…</span>}
+          {/* content id */}
+          <div className={`mt-4 rounded-xl p-3.5 ring-1 transition-colors duration-500 ${complete ? "bg-accent/[0.05] ring-accent/20" : "bg-bg-2 ring-transparent"}`}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[12px] font-medium text-label-2">Content ID · blake2b-256</div>
+              {complete && (
+                <button
+                  onClick={() => {
+                    navigator.clipboard?.writeText(doc!.root).then(() => {
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1400);
+                    });
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] text-label-2 transition-colors hover:bg-fill hover:text-label"
+                >
+                  {copied ? <Check className="size-3.5 text-green" strokeWidth={3} /> : <Copy className="size-3.5" />}
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              )}
+            </div>
+            <div className="mt-1.5 break-all font-mono text-[12px] leading-relaxed">
+              {complete ? <Scramble text={doc!.root} on /> : <span className="text-label-3">Waiting for every block…</span>}
             </div>
           </div>
-          <div className="mt-4 flex items-center gap-3">
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             {doc?.file ? (
               <Button
                 size="sm"
@@ -198,8 +291,16 @@ export function ArchiveDemo() {
                 Store it on Portaldot
               </Button>
             ) : (
-              <span className="text-[12px] text-label-3">Drop a file on this window. It&apos;s hashed in your browser, never uploaded from here.</span>
+              <button
+                onClick={() => input.current?.click()}
+                className="inline-flex items-center gap-2 rounded-lg border border-dashed border-sep-2 px-3 py-1.5 text-[12px] text-label-2 transition-colors hover:border-accent hover:text-accent"
+              >
+                <Upload className="size-3.5" /> Drop a file here, or pick one
+              </button>
             )}
+            <span className="inline-flex items-center gap-1.5 text-[12px] text-label-3">
+              <Lock className="size-3" /> Hashed locally. Nothing is uploaded from here.
+            </span>
           </div>
         </div>
       </div>

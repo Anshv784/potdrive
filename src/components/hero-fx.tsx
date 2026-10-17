@@ -23,11 +23,11 @@ const LIT: [number, number, number][] = [
 ];
 
 // Faint block grid behind the hero, with a glow that follows the pointer.
-export function HeroBackdrop() {
+export function HeroBackdrop({ y: cy = 30 }: { y?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const x = useMotionValue(50);
-  const y = useMotionValue(30);
+  const y = useMotionValue(cy);
   const sx = useSpring(x, { stiffness: 60, damping: 20 });
   const sy = useSpring(y, { stiffness: 60, damping: 20 });
   const glow = useMotionTemplate`radial-gradient(520px circle at ${sx}% ${sy}%, var(--glow), transparent 70%)`;
@@ -54,15 +54,15 @@ export function HeroBackdrop() {
           backgroundImage: `linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)`,
           backgroundSize: `${CELL}px ${CELL}px`,
           backgroundPosition: "center top",
-          maskImage: "radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 75%)",
-          WebkitMaskImage: "radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 75%)",
+          maskImage: `radial-gradient(ellipse 70% 60% at 50% ${cy}%, #000 30%, transparent 75%)`,
+          WebkitMaskImage: `radial-gradient(ellipse 70% 60% at 50% ${cy}%, #000 30%, transparent 75%)`,
         }}
       />
       <div
         className="absolute inset-0"
         style={{
-          maskImage: "radial-gradient(ellipse 60% 55% at 50% 30%, #000 25%, transparent 75%)",
-          WebkitMaskImage: "radial-gradient(ellipse 60% 55% at 50% 30%, #000 25%, transparent 75%)",
+          maskImage: `radial-gradient(ellipse 60% 55% at 50% ${cy}%, #000 25%, transparent 75%)`,
+          WebkitMaskImage: `radial-gradient(ellipse 60% 55% at 50% ${cy}%, #000 25%, transparent 75%)`,
         }}
       >
         {LIT.map(([cx, cy, d], i) => (

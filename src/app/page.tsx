@@ -411,14 +411,18 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="bg-bg-2 px-5 py-28 text-center">
+        <section className="relative isolate overflow-hidden bg-bg-2 px-5 py-32 text-center">
+          <HeroBackdrop y={45} />
           <Reveal>
-            <h2 className="headline mx-auto max-w-3xl text-[40px] sm:text-[56px]">
-              Put something on Portaldot that isn&apos;t a transfer.
-            </h2>
-            <div className="mt-8">
+            <p className="eyebrow text-accent">Live on the Portaldot V3 testnet</p>
+            <h2 className="headline mx-auto mt-3 max-w-3xl text-[40px] sm:text-[56px]">Put something on Portaldot that isn&apos;t a transfer.</h2>
+            <p className="mx-auto mt-4 max-w-lg text-[19px] text-label-2">Drop a file, sign once, and share a link anyone can verify.</p>
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <ButtonLink href="/drive" size="lg">
                 Open Drive
+              </ButtonLink>
+              <ButtonLink href="/docs/quickstart" size="lg" variant="gray">
+                Quickstart
               </ButtonLink>
             </div>
           </Reveal>

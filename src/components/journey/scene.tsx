@@ -2,7 +2,7 @@
 
 import { useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Edges, RoundedBox, type EdgesRef } from "@react-three/drei";
+import { ContactShadows, Edges, RoundedBox, type EdgesRef } from "@react-three/drei";
 import type { MotionValue } from "motion/react";
 import * as THREE from "three";
 
@@ -116,6 +116,9 @@ export interface Palette {
   bg: string;
 }
 
+// 1 while the file is in one piece (start and end), 0 while it's in chunks.
+const wholeness = (p: number) => clamp(1 - ease(seg(p, 0.1, 0.15)) + ease(seg(p, 0.91, 0.95)));
+
 function chunkTarget(i: number, p: number) {
   const s1 = ease(seg(p, 0.14, 0.3));
   const s2 = ease(seg(p, 0.3, 0.46));
@@ -186,7 +189,7 @@ function Chunk({
 }) {
   const ref = useRef<THREE.Group>(null);
   const mat = useRef<THREE.MeshStandardMaterial>(null);
-  const face = useRef<THREE.MeshStandardMaterial>(null);
+  const face = useRef<THREE.MeshBasicMaterial>(null);
   const edges = useRef<EdgesRef>(null);
   const slice = useMemo(() => {
     const t = page.clone();
@@ -206,6 +209,8 @@ function Chunk({
     const t = chunkTarget(i, p);
     const g = ref.current!;
     const k = 1 - Math.pow(0.0008, dt); // frame-rate independent damping
+    // the whole page stands in for the slices while the file is in one piece
+    g.visible = wholeness(p) < 0.999;
     g.position.x += (t.x - g.position.x) * k;
     g.position.y += (t.y - g.position.y) * k + Math.sin(state.clock.elapsedTime * 1.2 + i) * 0.0015;
     g.position.z += (t.z - g.position.z) * k;
@@ -229,7 +234,8 @@ function Chunk({
       const em = edges.current?.material;
       if (em) {
         em.transparent = true;
-        em.opacity = (0.08 + apart * 0.92) * mat.current.opacity;
+        em.opacity = apart * mat.current.opacity;
+        edges.current!.visible = em.opacity > 0.01;
       }
       if (face.current) {
         face.current.opacity = mat.current.opacity;
@@ -241,10 +247,6 @@ function Chunk({
           .lerp(green, t.dedup * 0.8)
           .lerp(accent, pulse * 0.4)
           .lerp(green, ok * 0.22);
-        face.current.emissive
-          .copy(accent)
-          .multiplyScalar(pulse * 0.25)
-          .add(green.clone().multiplyScalar(ok * 0.12));
       }
     }
   });
@@ -257,8 +259,8 @@ function Chunk({
       </mesh>
       {/* front face: this chunk's slice of the page */}
       <mesh position={[0, 0, 0.501]}>
-        <planeGeometry args={[1, 1]} />
-        <meshStandardMaterial ref={face} map={slice} roughness={0.6} transparent />
+        <planeGeometry args={[1.02, 1]} />
+        <meshBasicMaterial ref={face} map={slice} toneMapped={false} transparent />
       </mesh>
     </group>
   );
@@ -407,6 +409,69 @@ function Verified({ progress, palette }: { progress: MotionValue<number>; palett
   );
 }
 
+// A soft highlight that glides across the page while it's whole, so it reads as glossy paper.
+function sheenTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 512;
+  const g = c.getContext("2d")!;
+  // one vertical band, tilted by rotating the UVs; it wraps so it can slide forever
+  const grad = g.createLinearGradient(0, 0, 512, 0);
+  grad.addColorStop(0.46, "rgba(255,255,255,0)");
+  grad.addColorStop(0.5, "rgba(255,255,255,0.5)");
+  grad.addColorStop(0.54, "rgba(255,255,255,0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 512, 512);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.center.set(0.5, 0.5);
+  t.rotation = 0.5;
+  return t;
+}
+
+function Sheen({ progress, strength }: { progress: MotionValue<number>; strength: number }) {
+  const ref = useRef<THREE.Mesh>(null);
+  const tex = useMemo(() => sheenTexture(), []);
+  useFrame((state) => {
+    const p = progress.get();
+    const whole = 1 - ease(seg(p, 0.08, 0.14)) + ease(seg(p, 0.93, 0.99));
+    const m = ref.current!;
+    m.visible = whole > 0.01;
+    const mm = m.material as THREE.MeshBasicMaterial;
+    mm.opacity = whole * strength;
+    m.position.z = mix(SLAB.d / 2 + 0.02, 0.6 + SLAB.d / 2 + 0.02, ease(seg(p, 0.82, 0.93)));
+    mm.map!.offset.x = -((state.clock.elapsedTime * 0.18) % 1.6) + 0.8;
+  });
+  return (
+    <mesh ref={ref} position={[0, 0.5, SLAB.d / 2 + 0.02]}>
+      <planeGeometry args={[SLAB.w, SLAB.h]} />
+      <meshBasicMaterial map={tex} transparent blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+    </mesh>
+  );
+}
+
+// While the file is whole, it's one seamless block of paper instead of seven slices.
+function WholePage({ progress, page, palette }: { progress: MotionValue<number>; page: THREE.Texture; palette: Palette }) {
+  const ref = useRef<THREE.Mesh>(null);
+  const mats = useMemo(() => {
+    const side = new THREE.MeshStandardMaterial({ color: palette.paper, roughness: 0.55, metalness: 0.05, transparent: true });
+    const front = new THREE.MeshBasicMaterial({ map: page, toneMapped: false, transparent: true });
+    return [side, side, side, side, front, side];
+  }, [page, palette.paper]);
+  useFrame(() => {
+    const p = progress.get();
+    const w = wholeness(p);
+    const m = ref.current!;
+    m.visible = w > 0.001;
+    for (const mat of m.material as THREE.Material[]) mat.opacity = w;
+    m.position.z = mix(0, 0.6, ease(seg(p, 0.82, 0.93)));
+  });
+  return (
+    <mesh ref={ref} position={[0, 0.5, 0]} material={mats}>
+      <boxGeometry args={[SLAB.w, SLAB.h, SLAB.d]} />
+    </mesh>
+  );
+}
+
 function Rig({ children, progress }: { children: React.ReactNode; progress: MotionValue<number> }) {
   const ref = useRef<THREE.Group>(null);
   useFrame((state, dt) => {
@@ -441,7 +506,7 @@ export default function JourneyScene({
       gl={{ antialias: true, alpha: true }}
       style={{ background: "transparent" }}
     >
-      <ambientLight intensity={1.1} />
+      <ambientLight intensity={0.9} />
       <directionalLight position={[4, 6, 6]} intensity={1.3} />
       <directionalLight position={[-6, -2, 4]} intensity={0.35} color={palette.accent} />
       <Rig progress={progress}>
@@ -451,7 +516,10 @@ export default function JourneyScene({
         <Chain progress={progress} palette={palette} />
         <Validators progress={progress} palette={palette} />
         <Verified progress={progress} palette={palette} />
+        <WholePage progress={progress} page={page} palette={palette} />
+        <Sheen progress={progress} strength={palette.bg === "#000000" ? 0.35 : 0.12} />
       </Rig>
+      <ContactShadows position={[0, -2.45, 0]} scale={14} blur={2.6} far={5} opacity={palette.bg === "#000000" ? 0.6 : 0.28} resolution={256} color={palette.bg === "#000000" ? "#000000" : "#1e1b4b"} />
     </Canvas>
   );
 }

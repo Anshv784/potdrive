@@ -36,28 +36,10 @@ const QA: [string, ReactNode][] = [
     </>,
   ],
   [
-    "Can I delete a file?",
-    <>
-      Not from the chain. Nobody can remove a stored block early. Stop renewing and Portaldot drops it when its window ends. For
-      anything sensitive, store it private.
-    </>,
-  ],
-  [
     "How do I know nobody tampered with it?",
     <>
       The CID is the blake2b-256 hash of the bytes. The Drive, the gateway, the SDK and the CLI re-hash every block before using
       it and refuse anything that doesn&apos;t match. You don&apos;t have to trust the node or us.
-    </>,
-  ],
-  [
-    "Which wallets work?",
-    <>Any Polkadot extension wallet: Polkadot&#123;.js&#125;, Talisman, SubWallet or Nova. You sign once per upload.</>,
-  ],
-  [
-    "How big can a file be?",
-    <>
-      The Drive takes up to 64 MiB per file or folder. The CLI has no cap. Files are cut into blocks of 1 MiB or less, well under
-      the chain&apos;s 8 MiB limit per store.
     </>,
   ],
   [

@@ -10,7 +10,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "bun test sdk",
-    "cli": "bun cli/potdrive.ts"
+    "cli": "bun cli/potdrive.ts",
+    "docs:index": "bun scripts/docs-index.ts"
   },
   "dependencies": {
     "@ipld/dag-pb": "^4.1.3",
