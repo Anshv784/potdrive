@@ -244,3 +244,17 @@ body {
 }
 .hero-cell { opacity: 0; animation: hero-cell 7s ease-in-out infinite both; }
 @media (prefers-reduced-motion: reduce) { .hero-cell { animation: none; } }
+
+/* Editor-style code window on the landing page: line numbers from Shiki's .line spans. */
+.code-window pre { background: transparent !important; margin: 0; }
+.code-window code { counter-reset: line; display: block; min-width: max-content; }
+.code-window .line { display: inline-block; width: 100%; padding-right: 1.25rem; }
+.code-window .line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 2.25rem;
+  margin-right: 1rem;
+  text-align: right;
+  color: #484f58;
+}

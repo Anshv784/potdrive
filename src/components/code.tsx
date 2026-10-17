@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
-import { Segmented } from "./ui";
 
 export function CopyButton({ text, className = "", label = "Copy" }: { text: string; className?: string; label?: string }) {
   const [done, setDone] = useState(false);
@@ -32,18 +31,6 @@ export function CodeBlock({ code, title }: { code: string; title?: string }) {
       <pre className="overflow-x-auto px-4 pb-4 pt-2 font-mono text-[12.5px] leading-relaxed text-label [letter-spacing:0]">
         <code>{code}</code>
       </pre>
-    </div>
-  );
-}
-
-export function CodeTabs({ tabs }: { tabs: { label: string; code: string; title?: string }[] }) {
-  const [on, setOn] = useState(0);
-  return (
-    <div>
-      <div className="mx-auto mb-4 max-w-xs">
-        <Segmented label="Example" value={on} onChange={setOn} options={tabs.map((t, i) => ({ value: i, label: t.label }))} />
-      </div>
-      <CodeBlock code={tabs[on].code} title={tabs[on].title} />
     </div>
   );
 }

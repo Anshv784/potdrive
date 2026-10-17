@@ -19,7 +19,7 @@ import { Footer, Nav } from "@/components/nav";
 import { ArchiveDemo } from "@/components/archive-demo";
 import { Journey } from "@/components/journey/journey";
 import { StorageCount } from "@/components/storage-count";
-import { CodeTabs } from "@/components/code";
+import { DevShowcase } from "@/components/dev-showcase";
 import { ButtonLink, MoreLink } from "@/components/ui";
 import { GithubIcon } from "@/components/logo";
 import { Faq } from "@/components/faq";
@@ -61,37 +61,6 @@ const compare: [string, string | boolean, string | boolean, string | boolean][] 
   ["No extra account or API key", true, false, false],
   ["Who holds the bytes", "Portaldot validators", "A pinning company", "One cloud provider"],
 ];
-
-const sdk = `import { connect, prepareFile, uploadFile } from "@potdrive/sdk";
-
-const api = await connect();
-const file = await prepareFile(bytes, { name: "deck.pdf", mime: "application/pdf" });
-
-const { root } = await uploadFile({
-  api, file,
-  owner: { address, signer },   // any Polkadot wallet
-  registry: REGISTRY,
-  onEvent: (e) => console.log(e.type),
-});
-
-// https://potdrive.anshverma.tech/ipfs/<root>`;
-
-const cli = `$ bun cli/potdrive.ts put ./deck.pdf --private
-  prepared   deck.pdf · 3.40 MiB → 5 blocks · sealed
-  estimate   410.7 tPOT at most
-  authorized 0x8c1e5f0d… (block #75,112)
-  stored     ████████████████████ 5/5 blocks
-  verified   root served by bitswap in 412 ms
-  link       https://potdrive.anshverma.tech/f/bafykbzace…#k=…`;
-
-const gateway = `# Any stored file, with the right Content-Type
-GET https://potdrive.anshverma.tech/ipfs/<cid>
-
-# As a download
-GET https://potdrive.anshverma.tech/ipfs/<cid>?download=deck.pdf
-
-# Where every block lives, and when it expires
-GET https://potdrive.anshverma.tech/api/file/<cid>`;
 
 function Mark({ v }: { v: string | boolean }) {
   if (v === true) return <Check className="mx-auto size-5 text-accent" strokeWidth={2.5} aria-label="Yes" />;
@@ -371,23 +340,19 @@ export default function Home() {
 
         {/* developers */}
         <section className="bg-bg-2 px-5 py-24">
-          <div className="mx-auto max-w-3xl">
+          <div className="mx-auto max-w-[1100px]">
             <Reveal>
-              <h2 className="headline text-center text-[40px] sm:text-[56px]">For every other Portaldot app.</h2>
+              <p className="eyebrow text-center text-accent">For developers</p>
+              <h2 className="headline mt-2 text-center text-[40px] sm:text-[56px]">For every other Portaldot app.</h2>
               <p className="mx-auto mt-4 max-w-xl text-center text-[19px] text-label-2">
-                An SDK, a CLI and an IPFS-style gateway. Point an image tag at a CID and it loads from Portaldot.
+                An SDK, React components, a CLI and an IPFS-style gateway. Point an image tag at a CID and it loads from
+                Portaldot.
               </p>
             </Reveal>
-            <Reveal className="mt-10" delay={0.1}>
-              <CodeTabs
-                tabs={[
-                  { label: "SDK", code: sdk, title: "upload.ts" },
-                  { label: "CLI", code: cli, title: "Terminal" },
-                  { label: "Gateway", code: gateway, title: "HTTP" },
-                ]}
-              />
+            <Reveal className="mt-12" delay={0.1}>
+              <DevShowcase />
             </Reveal>
-            <div className="mt-8 text-center">
+            <div className="mt-10 text-center">
               <MoreLink href="/docs">Read the docs</MoreLink>
             </div>
           </div>
@@ -415,8 +380,12 @@ export default function Home() {
           <HeroBackdrop y={45} />
           <Reveal>
             <p className="eyebrow text-accent">Live on the Portaldot V3 testnet</p>
-            <h2 className="headline mx-auto mt-3 max-w-3xl text-[40px] sm:text-[56px]">Put something on Portaldot that isn&apos;t a transfer.</h2>
-            <p className="mx-auto mt-4 max-w-lg text-[19px] text-label-2">Drop a file, sign once, and share a link anyone can verify.</p>
+            <h2 className="headline mx-auto mt-3 max-w-3xl text-[40px] sm:text-[56px]">
+              Put something on Portaldot that isn&apos;t a transfer.
+            </h2>
+            <p className="mx-auto mt-4 max-w-lg text-[19px] text-label-2">
+              Drop a file, sign once, and share a link anyone can verify.
+            </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <ButtonLink href="/drive" size="lg">
                 Open Drive
