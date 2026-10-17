@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
+import { Check } from "lucide-react";
 import { buildFileDag } from "@potdrive/sdk/dag";
 import { CHUNK_SIZE } from "@potdrive/sdk/network";
 import { shortCid } from "@potdrive/sdk/cid";
 import { bytes, mimeLabel } from "@/lib/format";
 import { setPending } from "@/lib/pending";
+import { Button, DocIcon } from "./ui";
 
 interface Slip {
   i: number;
@@ -25,10 +27,10 @@ interface Doc {
   file?: File;
 }
 
-const MAX_SLIPS = 9;
+const MAX_SLIPS = 6;
 
 function sample(): Uint8Array {
-  // A deterministic 3.4 MiB "PDF" so the first visit always shows a multi-chunk file.
+  // A deterministic 3.4 MiB "PDF" so the first visit always shows a multi-block file.
   const out = new Uint8Array(Math.round(3.4 * 1024 * 1024));
   let x = 2463534242;
   for (let i = 0; i < out.length; i++) {
@@ -44,9 +46,7 @@ function sample(): Uint8Array {
 function describe(data: Uint8Array, name: string, mime: string, file?: File): Doc {
   const dag = buildFileDag(data, CHUNK_SIZE);
   const slips: Slip[] = dag.leaves.map((l, i) => ({ i, size: l.bytes.length, cid: l.cid.toString(), kind: "chunk" }));
-  if (dag.blocks.length > 1) {
-    slips.push({ i: slips.length, size: dag.blocks.at(-1)!.bytes.length, cid: dag.root.toString(), kind: "root" });
-  }
+  if (dag.blocks.length > 1) slips.push({ i: slips.length, size: dag.blocks.at(-1)!.bytes.length, cid: dag.root.toString(), kind: "root" });
   return { name, mime, size: data.length, slips, root: dag.root.toString(), file };
 }
 
@@ -55,7 +55,6 @@ export function ArchiveDemo() {
   const [doc, setDoc] = useState<Doc | null>(null);
   const [revealed, setRevealed] = useState(0);
   const [over, setOver] = useState(false);
-  const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -69,27 +68,22 @@ export function ArchiveDemo() {
         if (r >= shown + 1 && timer.current) clearInterval(timer.current);
         return r + 1;
       });
-    }, 260);
+    }, 320);
   }, []);
 
   useEffect(() => {
-    const id = setTimeout(() => play(describe(sample(), "field-notes.pdf", "application/pdf")), 400);
+    const id = setTimeout(() => play(describe(sample(), "Field Notes.pdf", "application/pdf")), 500);
     return () => {
       clearTimeout(id);
       if (timer.current) clearInterval(timer.current);
     };
   }, [play]);
 
-  const take = async (file: File) => {
-    setBusy(true);
-    const data = new Uint8Array(await file.arrayBuffer());
-    play(describe(data, file.name, file.type, file));
-    setBusy(false);
-  };
+  const take = async (file: File) => play(describe(new Uint8Array(await file.arrayBuffer()), file.name, file.type, file));
 
   const shown = doc ? doc.slips.slice(0, MAX_SLIPS) : [];
   const hidden = doc ? doc.slips.length - shown.length : 0;
-  const complete = doc && revealed > shown.length;
+  const complete = !!doc && revealed > shown.length;
 
   return (
     <div
@@ -104,18 +98,18 @@ export function ArchiveDemo() {
         const f = e.dataTransfer.files[0];
         if (f) take(f);
       }}
-      className={`relative rounded-2xl border bg-ink-2/80 p-4 transition-[border-color,box-shadow] duration-200 sm:p-5 ${
-        over ? "border-violet shadow-[0_0_0_4px_var(--violet-soft)]" : "border-line"
-      }`}
+      className={`overflow-hidden rounded-[22px] bg-surface text-left shadow-float ring-1 transition-[box-shadow] duration-300 ${over ? "ring-2 ring-accent" : "ring-sep"}`}
     >
-      <div className="mb-4 flex items-center justify-between">
-        <span className="stamp text-[10px] text-text-3">What goes on chain</span>
-        <button
-          onClick={() => input.current?.click()}
-          className="rounded-md border border-line-2 px-2.5 py-1 text-xs text-text-2 transition-colors duration-150 hover:border-text-3 hover:text-text"
-        >
-          {busy ? "Reading…" : "Try your own file"}
-        </button>
+      {/* window chrome */}
+      <div className="flex h-11 items-center gap-2 border-b border-sep bg-surface-2 px-4">
+        <span className="size-3 rounded-full bg-[#ff5f57]" />
+        <span className="size-3 rounded-full bg-[#febc2e]" />
+        <span className="size-3 rounded-full bg-[#28c840]" />
+        <span className="ml-3 hidden text-[13px] font-medium text-label-2 sm:inline">What goes on chain</span>
+        <Button variant="gray" size="sm" className="ml-auto h-7 text-[12px]" onClick={() => input.current?.click()}>
+          <span className="sm:hidden">Your file</span>
+          <span className="hidden sm:inline">Try your own file</span>
+        </Button>
         <input
           ref={input}
           type="file"
@@ -128,89 +122,85 @@ export function ArchiveDemo() {
         />
       </div>
 
-      {/* the record card */}
-      <AnimatePresence mode="wait">
-        {doc && (
-          <motion.div
-            key={doc.root}
-            initial={{ opacity: 0, y: 10, rotate: -0.6 }}
-            animate={{ opacity: 1, y: 0, rotate: -0.6 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-            className="paper relative rounded-lg px-4 py-3 shadow-[0_10px_30px_-12px_rgb(0_0_0/0.6)]"
-          >
-            <div className="flex items-start gap-3">
-              <div className="grid size-10 shrink-0 place-items-center rounded-md border border-paper-line bg-paper-2 font-mono text-[10px] font-semibold text-paper-mute">
-                {mimeLabel(doc.mime, doc.name)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-medium">{doc.name}</div>
-                <div className="mt-0.5 font-mono text-[11px] text-paper-mute tabular">
-                  {bytes(doc.size)} · {doc.slips.filter((s) => s.kind === "chunk").length} chunk
-                  {doc.slips.filter((s) => s.kind === "chunk").length === 1 ? "" : "s"} of 1 MiB
-                </div>
-              </div>
-              <AnimatePresence>
-                {complete && (
-                  <motion.span
-                    initial={{ opacity: 0, scale: 1.6, rotate: -14 }}
-                    animate={{ opacity: 1, scale: 1, rotate: -8 }}
-                    transition={{ type: "spring", stiffness: 420, damping: 18 }}
-                    className="stamp shrink-0 rounded border-2 border-violet px-1.5 py-0.5 text-[10px] font-semibold text-violet"
-                  >
-                    Addressed
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* slips */}
-      <ol className="mt-3 space-y-1.5" aria-label="Blocks">
-        {shown.map((s, idx) => (
-          <motion.li
-            key={`${doc?.root}-${s.i}`}
-            initial={{ opacity: 0, x: -8 }}
-            animate={revealed > idx ? { opacity: 1, x: 0 } : { opacity: 0, x: -8 }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className={`flex items-center gap-3 rounded-md border px-3 py-2 font-mono text-[11px] ${
-              s.kind === "root" ? "border-violet/60 bg-violet-soft text-text" : "border-line bg-ink-3/60 text-text-2"
-            }`}
-          >
-            <span className={`w-12 shrink-0 ${s.kind === "root" ? "text-violet-2" : "text-text-3"}`}>
-              {s.kind === "root" ? "root" : `#${String(s.i + 1).padStart(2, "0")}`}
-            </span>
-            <span className="w-16 shrink-0 tabular">{bytes(s.size)}</span>
-            <span className="min-w-0 flex-1 truncate">{shortCid(s.cid, 14, 8)}</span>
-            <span className="hidden shrink-0 text-text-3 sm:inline">{s.kind === "root" ? "dag-pb" : "raw"}</span>
-          </motion.li>
-        ))}
-        {hidden > 0 && revealed > shown.length - 1 && (
-          <li className="px-3 py-1 font-mono text-[11px] text-text-3">+ {hidden} more blocks</li>
-        )}
-      </ol>
-
-      <div className="mt-4 border-t border-line pt-4">
-        <div className="stamp text-[10px] text-text-3">Content ID · blake2b-256</div>
-        <div className="mt-1.5 break-all font-mono text-[12px] leading-relaxed text-text">
-          {complete ? doc!.root : <span className="text-text-3">computing…</span>}
+      <div className="grid gap-0 md:grid-cols-[15rem_1fr]">
+        {/* file */}
+        <div className="flex flex-col items-center justify-center border-b border-sep px-6 py-8 md:border-b-0 md:border-r">
+          <AnimatePresence mode="wait">
+            {doc && (
+              <motion.div
+                key={doc.root}
+                initial={{ opacity: 0, scale: 0.92 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                className="flex flex-col items-center text-center"
+              >
+                <DocIcon type={mimeLabel(doc.mime, doc.name)} size={64} />
+                <div className="mt-3 max-w-[12rem] truncate text-[15px] font-medium">{doc.name}</div>
+                <div className="text-[13px] text-label-2 tabular">{bytes(doc.size)}</div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <AnimatePresence>
+            {complete && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-green-soft px-2.5 py-1 text-[12px] font-medium text-green"
+              >
+                <Check className="size-3.5" strokeWidth={3} /> Addressed
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          {doc?.file ? (
-            <button
-              onClick={() => {
-                setPending(doc.file!);
-                router.push("/drive");
-              }}
-              className="rounded-md bg-violet px-3.5 py-2 text-sm font-medium text-white transition-[background-color,transform] duration-150 hover:bg-violet-2 active:scale-[0.98]"
-            >
-              Store it on Portaldot
-            </button>
-          ) : (
-            <span className="text-xs text-text-3">Drop a file here. It is hashed in your browser and never uploaded from this page.</span>
-          )}
+
+        {/* blocks */}
+        <div className="p-4 sm:p-5">
+          <div className="text-[13px] text-label-2">
+            {doc ? `${doc.slips.filter((s) => s.kind === "chunk").length} × 1 MiB blocks${doc.slips.some((s) => s.kind === "root") ? " + 1 root" : ""}` : "Reading…"}
+          </div>
+          <ol className="mt-2 overflow-hidden rounded-xl bg-bg-2">
+            {shown.map((s, idx) => {
+              const on = revealed > idx;
+              return (
+                <li key={`${doc?.root}-${s.i}`} className="flex items-center gap-3 border-b border-sep px-3.5 py-2.5 last:border-0">
+                  <span
+                    className={`grid size-5 shrink-0 place-items-center rounded-full transition-colors duration-300 ${on ? (s.kind === "root" ? "bg-accent" : "bg-green") : "bg-fill-2"}`}
+                  >
+                    {on && <Check className="size-3 text-white" strokeWidth={3.5} />}
+                  </span>
+                  <span className="w-12 shrink-0 text-[13px] font-medium">{s.kind === "root" ? "Root" : `Block ${s.i + 1}`}</span>
+                  <span className={`min-w-0 flex-1 truncate font-mono text-[12px] transition-colors duration-300 ${on ? "text-label-2" : "text-label-3/50"}`}>
+                    {on ? shortCid(s.cid, 12, 8) : "hashing…"}
+                  </span>
+                  <span className="hidden shrink-0 text-[12px] text-label-3 tabular sm:inline">{bytes(s.size)}</span>
+                </li>
+              );
+            })}
+            {hidden > 0 && <li className="px-3.5 py-2 text-[12px] text-label-3">and {hidden} more</li>}
+          </ol>
+
+          <div className="mt-4">
+            <div className="text-[13px] text-label-2">Content ID · blake2b-256</div>
+            <div className="mt-1 break-all font-mono text-[12px] leading-relaxed">
+              {complete ? doc!.root : <span className="text-label-3">Computing…</span>}
+            </div>
+          </div>
+          <div className="mt-4 flex items-center gap-3">
+            {doc?.file ? (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setPending(doc.file!);
+                  router.push("/drive");
+                }}
+              >
+                Store it on Portaldot
+              </Button>
+            ) : (
+              <span className="text-[12px] text-label-3">Drop a file on this window. It&apos;s hashed in your browser, never uploaded from here.</span>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -2,9 +2,9 @@ import { ImageResponse } from "next/og";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "PotDrive: native file storage on Portaldot";
+export const alt = "PotDrive: storage, built into Portaldot";
 
-async function font(family: string, weight = 400) {
+async function font(family: string, weight: number) {
   // No browser User-Agent, so Google serves TrueType (Satori cannot read woff2).
   const css = await fetch(`https://fonts.googleapis.com/css2?family=${family.replace(/ /g, "+")}:wght@${weight}`).then((r) => r.text());
   const url = css.match(/src: url\((.+?)\) format/)?.[1];
@@ -12,42 +12,37 @@ async function font(family: string, weight = 400) {
 }
 
 export default async function OG() {
-  const [serif, mono] = await Promise.all([font("Instrument Serif"), font("Geist Mono")]);
-  const slips = ["#01  1.00 MiB  bafk2bzace…dmuy37oc", "#02  1.00 MiB  bafk2bzace…6vtltc3k", "#03  1.00 MiB  bafk2bzace…jzxotgzg", "root   217 B  bafykbzace…bzw2j6ka"];
+  const [bold, regular] = await Promise.all([font("Inter", 600), font("Inter", 400)]);
+  const rows = ["Block 1", "Block 2", "Block 3", "Block 4", "Root"];
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", background: "#0f0e13", color: "#ece8e1", padding: 72, fontFamily: "Serif" }}>
-        <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", width: 620 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 34 }}>
-            <div style={{ width: 16, height: 16, borderRadius: 99, background: "#7b5cff" }} />
-            PotDrive
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", fontSize: 76, lineHeight: 1.02 }}>
-            <span>Portaldot already had storage built in.</span>
-            <span style={{ color: "#9a83ff", fontStyle: "italic" }}>Now you can use it.</span>
-          </div>
-          <div style={{ fontFamily: "Mono", fontSize: 18, color: "#a9a4b2" }}>TransactionStorage · IPFS CIDs · verified in-browser</div>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#ffffff", color: "#1d1d1f", fontFamily: "Inter", paddingBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 30, fontWeight: 600 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 11, background: "linear-gradient(135deg, #5e5ce6, #0a84ff)" }} />
+          PotDrive
         </div>
-        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", marginLeft: 60, gap: 12, flex: 1 }}>
-          <div style={{ display: "flex", flexDirection: "column", background: "#efe9dd", color: "#1b1a20", borderRadius: 14, padding: "20px 24px", transform: "rotate(-1deg)" }}>
-            <span style={{ fontSize: 30 }}>field-notes.pdf</span>
-            <span style={{ fontFamily: "Mono", fontSize: 16, color: "#6d665a" }}>3.40 MiB · 4 chunks + root</span>
-          </div>
-          {slips.map((s, i) => (
-            <div
-              key={s}
-              style={{
-                display: "flex",
-                fontFamily: "Mono",
-                fontSize: 16,
-                padding: "12px 16px",
-                borderRadius: 10,
-                border: `1px solid ${i === 3 ? "#7b5cff" : "#2a2832"}`,
-                background: i === 3 ? "rgba(123,92,255,0.18)" : "#1c1b23",
-                color: i === 3 ? "#ece8e1" : "#a9a4b2",
-              }}
-            >
-              {s}
+        <div style={{ fontSize: 84, fontWeight: 600, letterSpacing: -2.5, marginTop: 28 }}>Storage, built into the chain.</div>
+        <div style={{ fontSize: 30, color: "#6e6e73", marginTop: 14 }}>Files in Portaldot&apos;s own TransactionStorage. One signature.</div>
+        <div style={{ display: "flex", gap: 14, marginTop: 56 }}>
+          {rows.map((r, i) => (
+            <div key={r} style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 22px", borderRadius: 18, background: "#f5f5f7", fontSize: 24 }}>
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 99,
+                  background: i === 4 ? "#0071e3" : "#34c759",
+                  color: "white",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 16,
+                  fontWeight: 600,
+                }}
+              >
+                ✓
+              </div>
+              {r}
             </div>
           ))}
         </div>
@@ -56,8 +51,8 @@ export default async function OG() {
     {
       ...size,
       fonts: [
-        ...(serif ? [{ name: "Serif", data: serif, style: "normal" as const }] : []),
-        ...(mono ? [{ name: "Mono", data: mono, style: "normal" as const }] : []),
+        ...(bold ? [{ name: "Inter", data: bold, weight: 600 as const, style: "normal" as const }] : []),
+        ...(regular ? [{ name: "Inter", data: regular, weight: 400 as const, style: "normal" as const }] : []),
       ],
     },
   );

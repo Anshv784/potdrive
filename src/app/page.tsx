@@ -1,84 +1,82 @@
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { Check, Cpu, FileLock2, KeyRound, Layers, RefreshCw, ScanSearch, ShieldCheck, Minus } from "lucide-react";
 import { Footer, Nav } from "@/components/nav";
 import { ArchiveDemo } from "@/components/archive-demo";
 import { StorageCount } from "@/components/storage-count";
 import { CodeTabs } from "@/components/code";
+import { ButtonLink, MoreLink } from "@/components/ui";
 
 const steps = [
   {
-    n: "01",
-    title: "Prepared in your browser",
-    body: "The file is cut into 1 MiB blocks. Each block is hashed with blake2b-256, the same hash Portaldot indexes, and a UnixFS root links them in order. Private files are sealed with AES-256-GCM first.",
-    tech: "chunk → blake2b-256 → dag-pb root",
+    icon: Layers,
+    title: "Prepared on your device.",
+    body: "Your file is cut into 1 MiB blocks and hashed with blake2b-256, the same hash Portaldot indexes. A UnixFS root links them in order.",
+    tech: "chunk · blake2b-256 · dag-pb",
   },
   {
-    n: "02",
-    title: "You sign once",
-    body: "One batch funds a throwaway upload key and records the file in the PotDrive registry, a Solidity contract running on Revive. Your wallet never sees a second prompt.",
+    icon: KeyRound,
+    title: "One signature.",
+    body: "A single batch funds a temporary upload key and records the file in the PotDrive registry on Revive. Your wallet asks once.",
     tech: "utility.batchAll · revive.call",
   },
   {
-    n: "03",
-    title: "Stored block by block",
-    body: "The upload key sends one transactionStorage.store per block. The node indexes the tail of each extrinsic, so blocks can't share a batch. When the last block lands, the key sends what's left back to you.",
+    icon: Cpu,
+    title: "Stored by the chain.",
+    body: "The upload key writes each block with transactionStorage.store, then sends whatever it didn't spend back to you.",
     tech: "transactionStorage.store × n",
   },
   {
-    n: "04",
-    title: "Checked, not trusted",
-    body: "Your browser pulls every block back from a Portaldot node over bitswap and re-hashes it against its CID. A block only counts once its hash matches.",
+    icon: ScanSearch,
+    title: "Checked, not trusted.",
+    body: "Your browser pulls every block back over bitswap and re-hashes it. A block only counts once its hash matches.",
     tech: "bitswap_v1_get → re-hash",
   },
 ];
 
-const compare = [
-  ["Who holds the bytes", "Portaldot validators", "A pinning company's IPFS nodes", "One cloud provider"],
-  ["Proof the data still exists", "checkProof, inside the runtime", "None on chain", "None"],
-  ["Address", "IPFS CID (blake2b-256)", "IPFS CID", "A URL that can change"],
-  ["Who you trust to read it", "Nobody. Your browser re-hashes every block", "Their gateway", "The provider"],
-  ["Extra accounts or API keys", "None", "Account + API key", "Account + billing"],
+const compare: [string, string | boolean, string | boolean, string | boolean][] = [
+  ["Held by the network you already use", true, false, false],
+  ["Storage proofs inside the runtime", true, false, false],
+  ["Standard IPFS content IDs", true, true, false],
+  ["Readers verify every byte themselves", true, false, false],
+  ["No extra account or API key", true, false, false],
+  ["Who holds the bytes", "Portaldot validators", "A pinning company", "One cloud provider"],
 ];
 
-const pallets = [
-  ["TransactionStorage", "store · renew · checkProof", "Holds the bytes for 100,800 blocks (about a week). Validators must prove they still have them."],
-  ["Bitswap RPC", "bitswap_v1_get", "Serves any stored block by CID. This is the read path for the gateway, the SDK and the verifier."],
-  ["Revive", "PotDriveRegistry.sol", "Ownership, listing and prepaid keep-alive. Plain EVM bytecode, called from a Polkadot wallet."],
-  ["Utility + Balances", "batchAll · transferAll", "Turns a multi-transaction upload into one signature, and returns the unspent upload budget."],
-];
+const sdk = `import { connect, prepareFile, uploadFile } from "@potdrive/sdk";
 
-const sdk = `import { prepareFile, uploadFile, connect } from "@potdrive/sdk";
-
-const api = await connect();                    // wss://test-node-v3.portaldot.dev
+const api = await connect();
 const file = await prepareFile(bytes, { name: "deck.pdf", mime: "application/pdf" });
 
 const { root } = await uploadFile({
   api, file,
-  owner: { address, signer },                   // any Polkadot wallet signer
-  registry: REGISTRY,                           // optional: record ownership
-  onEvent: (e) => console.log(e.type),          // estimate, authorized, block, verified…
+  owner: { address, signer },   // any Polkadot wallet
+  registry: REGISTRY,
+  onEvent: (e) => console.log(e.type),
 });
 
-console.log(\`https://potdrive.anshverma.tech/ipfs/\${root}\`);`;
+// https://potdrive.anshverma.tech/ipfs/<root>`;
 
 const cli = `$ bun cli/potdrive.ts put ./deck.pdf --private
-  prepared   deck.pdf · 3.4 MiB → 4 chunks + root
-  authorized 0x8c1e…09ab (block #75,112)
+  prepared   deck.pdf · 3.40 MiB → 5 blocks · sealed
+  estimate   410.7 tPOT at most
+  authorized 0x8c1e5f0d… (block #75,112)
   stored     ████████████████████ 5/5 blocks
   verified   root served by bitswap in 412 ms
-  link       https://potdrive.anshverma.tech/f/bafy2bzace…#k=…
+  link       https://potdrive.anshverma.tech/f/bafykbzace…#k=…`;
 
-$ bun cli/potdrive.ts get bafy2bzace… -o deck.pdf
-  verified   5/5 blocks match their hashes`;
-
-const gateway = `# Any stored file, with the right Content-Type. Works in <img>, <video>, fetch().
+const gateway = `# Any stored file, with the right Content-Type
 GET https://potdrive.anshverma.tech/ipfs/<cid>
 
-# Force a download with a filename
+# As a download
 GET https://potdrive.anshverma.tech/ipfs/<cid>?download=deck.pdf
 
-# Metadata: registry record, chunk placements and expiry block
+# Where every block lives, and when it expires
 GET https://potdrive.anshverma.tech/api/file/<cid>`;
+
+function Mark({ v }: { v: string | boolean }) {
+  if (v === true) return <Check className="mx-auto size-5 text-accent" strokeWidth={2.5} aria-label="Yes" />;
+  if (v === false) return <Minus className="mx-auto size-5 text-label-3" aria-label="No" />;
+  return <span className="text-[14px] text-label-2">{v}</span>;
+}
 
 export default function Home() {
   return (
@@ -86,128 +84,133 @@ export default function Home() {
       <Nav />
       <main>
         {/* hero */}
-        <section className="desk relative overflow-hidden border-b border-line/70">
-          <div className="mx-auto grid max-w-6xl gap-12 px-4 pb-20 pt-14 sm:px-6 lg:grid-cols-[1.05fr_1fr] lg:gap-16 lg:pt-20">
-            <div className="flex flex-col justify-center">
-              <span className="stamp inline-flex w-fit items-center gap-2 rounded-full border border-line-2 bg-ink-2 px-3 py-1 text-[10px] text-text-2">
-                <span className="size-1.5 rounded-full bg-violet" />
-                Portaldot V3 · TransactionStorage
-              </span>
-              <h1 className="mt-6 font-serif text-[2.9rem] leading-[1.02] tracking-tight text-text sm:text-6xl lg:text-[4.1rem]">
-                Portaldot already had storage built in.{" "}
-                <em className="text-violet-2">Now you can use it.</em>
-              </h1>
-              <p className="mt-6 max-w-xl text-[1.05rem] leading-relaxed text-text-2">
-                PotDrive writes your files straight into Portaldot&apos;s own TransactionStorage. Validators keep every byte and
-                have to prove they still have it. You get a real IPFS CID, a link that works anywhere, and a browser that
-                checks each block for itself.
-              </p>
-              <div className="mt-8 flex flex-wrap items-center gap-3">
-                <Link
-                  href="/drive"
-                  className="inline-flex items-center gap-2 rounded-lg bg-violet px-5 py-2.5 font-medium text-white transition-[background-color,transform] duration-150 hover:bg-violet-2 active:scale-[0.98]"
-                >
-                  Open Drive <ArrowRight className="size-4" />
-                </Link>
-                <Link
-                  href="/docs"
-                  className="rounded-lg border border-line-2 px-5 py-2.5 text-text-2 transition-colors duration-150 hover:border-text-3 hover:text-text"
-                >
-                  How it works
-                </Link>
-              </div>
-              <dl className="mt-12 grid max-w-lg grid-cols-3 gap-6 border-t border-line pt-6">
-                {[
-                  ["1", "signature per upload"],
-                  ["7 days", "kept, then renewable"],
-                  ["0", "servers you have to trust"],
-                ].map(([v, l]) => (
-                  <div key={l}>
-                    <dt className="font-serif text-3xl text-text">{v}</dt>
-                    <dd className="mt-1 text-xs leading-snug text-text-3">{l}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
+        <section className="overflow-hidden px-5 pb-20 pt-16 text-center sm:pt-24">
+          <p className="eyebrow text-accent">New on Portaldot V3</p>
+          <h1 className="headline mx-auto mt-3 max-w-4xl text-[44px] sm:text-[64px] lg:text-[80px]">Storage, built into the chain.</h1>
+          <p className="mx-auto mt-5 max-w-2xl text-[19px] leading-snug text-label-2 sm:text-[24px]">
+            PotDrive puts your files straight into Portaldot&apos;s own TransactionStorage. One signature to store. Every byte
+            checked by the browser that reads it.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
+            <ButtonLink href="/drive" size="lg">
+              Open Drive
+            </ButtonLink>
+            <MoreLink href="/docs" className="text-[17px]">
+              Learn how it works
+            </MoreLink>
+          </div>
+          <div className="mx-auto mt-16 max-w-4xl">
             <ArchiveDemo />
           </div>
         </section>
 
+        {/* numbers */}
+        <section className="bg-bg-2 px-5 py-20">
+          <div className="mx-auto grid max-w-[1024px] gap-12 text-center sm:grid-cols-3">
+            {[
+              ["1", "signature", "Per upload, whatever the size. The rest is signed by a temporary key in your tab."],
+              ["7", "days", "Kept and proven by validators per payment, then renewable by anyone."],
+              ["0", "servers to trust", "Readers fetch from the chain and verify every block against its hash."],
+            ].map(([n, unit, body]) => (
+              <div key={unit}>
+                <div className="headline text-[64px] leading-none sm:text-[80px]">{n}</div>
+                <div className="mt-1 text-[21px] font-semibold">{unit}</div>
+                <p className="mx-auto mt-2 max-w-[17rem] text-[15px] text-label-2">{body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* the gap */}
-        <section className="border-b border-line/70">
-          <div className="mx-auto grid max-w-6xl gap-10 px-4 py-20 sm:px-6 lg:grid-cols-[1fr_1.1fr]">
-            <div>
-              <span className="stamp text-[10px] text-violet-2">The unused pallet</span>
-              <h2 className="mt-3 font-serif text-4xl leading-tight sm:text-5xl">It shipped in V3. Nothing had ever been stored in it.</h2>
-            </div>
-            <div className="space-y-5 text-text-2 leading-relaxed">
-              <p>
-                Portaldot V3 includes <code className="font-mono text-sm text-text">TransactionStorage</code>, the same pallet
-                behind Polkadot&apos;s Bulletin chain. Anyone can call it, the node serves its data over IPFS bitswap, and every
-                block producer has to prove it is still holding the data.
-              </p>
-              <p>
-                When we checked on 17 October 2026, it held zero entries. There was no SDK, no gateway, no UI and no guide. Teams
-                in this very hacker house were sending their files to outside IPFS pinning services instead.
-              </p>
-              <div className="paper flex items-center justify-between rounded-lg px-5 py-4">
-                <div>
-                  <div className="stamp text-[10px] text-paper-mute">Blocks holding data right now</div>
-                  <div className="mt-1 font-mono text-xs text-paper-mute">TransactionStorage.Transactions, live</div>
-                </div>
-                <div className="font-serif text-5xl text-paper-ink">
+        <section className="px-5 py-24">
+          <div className="mx-auto max-w-[1024px]">
+            <div className="grid items-center gap-10 overflow-hidden rounded-[28px] bg-bg-2 p-8 sm:p-14 md:grid-cols-[1.2fr_1fr]">
+              <div>
+                <p className="eyebrow text-label-2">The unused pallet</p>
+                <h2 className="headline mt-2 text-[34px] sm:text-[48px]">It shipped in V3. Nobody had stored a thing.</h2>
+                <p className="mt-5 text-[17px] text-label-2">
+                  Portaldot V3 runs TransactionStorage, the same pallet behind Polkadot&apos;s Bulletin chain. When we looked on
+                  17&nbsp;October 2026 it held zero entries. No SDK, no gateway, no app. Teams on Portaldot were sending their files
+                  to outside pinning services instead.
+                </p>
+              </div>
+              <div className="rounded-[22px] bg-surface p-8 text-center shadow-card">
+                <div className="text-[13px] font-medium text-label-2">Blocks holding data right now</div>
+                <div className="headline mt-2 text-[96px] leading-none text-accent">
                   <StorageCount />
                 </div>
+                <div className="mt-3 font-mono text-[12px] text-label-3">TransactionStorage.Transactions · live</div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* pipeline */}
-        <section className="border-b border-line/70">
-          <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
-            <span className="stamp text-[10px] text-violet-2">From your disk to a validator</span>
-            <h2 className="mt-3 max-w-2xl font-serif text-4xl leading-tight sm:text-5xl">Four steps. Only one of them asks you anything.</h2>
-            <ol className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-2 lg:grid-cols-4">
+        {/* how */}
+        <section className="bg-bg-2 px-5 py-24">
+          <div className="mx-auto max-w-[1024px]">
+            <h2 className="headline text-center text-[40px] sm:text-[56px]">Four steps. One question.</h2>
+            <p className="mx-auto mt-4 max-w-xl text-center text-[19px] text-label-2">From your disk to a validator, and back to anyone with the link.</p>
+            <div className="mt-14 grid gap-5 md:grid-cols-2">
               {steps.map((s) => (
-                <li key={s.n} className="flex flex-col bg-ink-2 p-6">
-                  <span className="font-mono text-xs text-violet-2">{s.n}</span>
-                  <h3 className="mt-4 text-lg font-medium text-text">{s.title}</h3>
-                  <p className="mt-2 flex-1 text-sm leading-relaxed text-text-2">{s.body}</p>
-                  <code className="mt-6 block border-t border-line pt-3 font-mono text-[11px] text-text-3">{s.tech}</code>
-                </li>
+                <div key={s.title} className="flex flex-col rounded-[28px] bg-surface p-8 sm:p-10">
+                  <s.icon className="size-9 text-accent" strokeWidth={1.6} />
+                  <h3 className="mt-6 text-[24px] font-semibold tracking-[-0.02em]">{s.title}</h3>
+                  <p className="mt-2 flex-1 text-[17px] text-label-2">{s.body}</p>
+                  <code className="mt-6 font-mono text-[12px] text-label-3">{s.tech}</code>
+                </div>
               ))}
-            </ol>
+            </div>
           </div>
         </section>
 
-        {/* comparison */}
-        <section className="border-b border-line/70">
-          <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
-            <span className="stamp text-[10px] text-violet-2">Why native</span>
-            <h2 className="mt-3 max-w-2xl font-serif text-4xl leading-tight sm:text-5xl">The chain already pays validators to keep data.</h2>
-            <div className="mt-10 overflow-x-auto rounded-2xl border border-line">
-              <table className="w-full min-w-[640px] text-left text-sm">
+        {/* features */}
+        <section className="px-5 py-24">
+          <div className="mx-auto grid max-w-[1024px] gap-5 md:grid-cols-3">
+            {[
+              [FileLock2, "Private by choice.", "AES-256-GCM in your browser before upload. The chain only sees ciphertext. The key lives in the link, after the #."],
+              [RefreshCw, "Keep-alive.", "Prepay renewals and a daily keeper renews your file before Portaldot drops it, reimbursed exactly, capped per file."],
+              [ShieldCheck, "Verified everywhere.", "The Drive, the gateway, the SDK and the CLI all re-hash every block before they use it."],
+            ].map(([Icon, title, body]) => {
+              const I = Icon as typeof FileLock2;
+              return (
+                <div key={title as string} className="rounded-[28px] bg-bg-2 p-8">
+                  <I className="size-8 text-accent" strokeWidth={1.6} />
+                  <h3 className="mt-5 text-[21px] font-semibold tracking-[-0.02em]">{title as string}</h3>
+                  <p className="mt-2 text-[15px] text-label-2">{body as string}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* compare */}
+        <section className="bg-bg-2 px-5 py-24">
+          <div className="mx-auto max-w-[1024px]">
+            <h2 className="headline text-center text-[40px] sm:text-[56px]">Why native.</h2>
+            <p className="mx-auto mt-4 max-w-xl text-center text-[19px] text-label-2">Portaldot already pays validators to keep and prove data.</p>
+            <div className="mt-12 overflow-x-auto rounded-[28px] bg-surface p-2 sm:p-6">
+              <table className="w-full min-w-[620px] text-center">
                 <thead>
-                  <tr className="border-b border-line bg-ink-2">
-                    <th className="px-5 py-3 font-normal text-text-3"></th>
-                    <th className="px-5 py-3 font-medium text-text">
-                      <span className="inline-flex items-center gap-2">
-                        <span className="size-1.5 rounded-full bg-violet" />
-                        PotDrive
-                      </span>
-                    </th>
-                    <th className="px-5 py-3 font-normal text-text-2">IPFS pinning service</th>
-                    <th className="px-5 py-3 font-normal text-text-2">Cloud bucket</th>
+                  <tr>
+                    <th className="w-[40%]" />
+                    <th className="pb-6 pt-2 text-[17px] font-semibold">PotDrive</th>
+                    <th className="pb-6 pt-2 text-[17px] font-normal text-label-2">Pinning service</th>
+                    <th className="pb-6 pt-2 text-[17px] font-normal text-label-2">Cloud bucket</th>
                   </tr>
                 </thead>
                 <tbody>
                   {compare.map(([k, a, b, c]) => (
-                    <tr key={k} className="border-b border-line last:border-0">
-                      <td className="px-5 py-3.5 text-text-3">{k}</td>
-                      <td className="bg-violet-soft/40 px-5 py-3.5 text-text">{a}</td>
-                      <td className="px-5 py-3.5 text-text-2">{b}</td>
-                      <td className="px-5 py-3.5 text-text-2">{c}</td>
+                    <tr key={k} className="border-t border-sep">
+                      <td className="py-4 pr-4 text-left text-[15px]">{k}</td>
+                      <td className="py-4">
+                        <Mark v={a} />
+                      </td>
+                      <td className="py-4">
+                        <Mark v={b} />
+                      </td>
+                      <td className="py-4">
+                        <Mark v={c} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -217,63 +220,57 @@ export default function Home() {
         </section>
 
         {/* runtime */}
-        <section className="border-b border-line/70">
-          <div className="mx-auto grid max-w-6xl gap-12 px-4 py-20 sm:px-6 lg:grid-cols-[0.9fr_1.1fr]">
-            <div>
-              <span className="stamp text-[10px] text-violet-2">Built from the runtime up</span>
-              <h2 className="mt-3 font-serif text-4xl leading-tight sm:text-5xl">No new chain, no new token, no sidecar network.</h2>
-              <p className="mt-5 text-text-2 leading-relaxed">
-                PotDrive is middleware over things Portaldot V3 already runs, on both of its execution sides: native pallets for
-                the bytes, and Solidity on Revive for the index.
-              </p>
-            </div>
-            <ul className="divide-y divide-line rounded-2xl border border-line bg-ink-2">
-              {pallets.map(([name, calls, what]) => (
-                <li key={name} className="grid gap-1 px-5 py-4 sm:grid-cols-[11rem_1fr] sm:gap-6">
-                  <div>
-                    <div className="font-medium text-text">{name}</div>
-                    <div className="font-mono text-[11px] text-text-3">{calls}</div>
-                  </div>
-                  <p className="text-sm leading-relaxed text-text-2">{what}</p>
-                </li>
+        <section className="px-5 py-24">
+          <div className="mx-auto max-w-[1024px]">
+            <h2 className="headline text-center text-[40px] sm:text-[56px]">Made of Portaldot.</h2>
+            <p className="mx-auto mt-4 max-w-2xl text-center text-[19px] text-label-2">
+              No new chain, no new token. Native pallets hold the bytes. Solidity on Revive keeps the index.
+            </p>
+            <div className="mt-12 grid gap-5 sm:grid-cols-2">
+              {[
+                ["TransactionStorage", "store · renew · checkProof", "Holds each block for 100,800 blocks. Validators must keep proving they have it."],
+                ["Bitswap RPC", "bitswap_v1_get", "Returns any stored block by CID. The read path for every client."],
+                ["Revive", "PotDriveRegistry.sol", "Ownership and keep-alive. EVM bytecode, called from a Polkadot wallet."],
+                ["Utility + Balances", "batchAll · transferAll", "Turns many transactions into one signature, and returns the change."],
+              ].map(([name, calls, what]) => (
+                <div key={name} className="rounded-[28px] bg-bg-2 p-8">
+                  <div className="text-[21px] font-semibold tracking-[-0.02em]">{name}</div>
+                  <div className="mt-1 font-mono text-[12px] text-accent">{calls}</div>
+                  <p className="mt-3 text-[15px] text-label-2">{what}</p>
+                </div>
               ))}
-            </ul>
-          </div>
-        </section>
-
-        {/* builders */}
-        <section className="border-b border-line/70">
-          <div className="mx-auto grid max-w-6xl gap-12 px-4 py-20 sm:px-6 lg:grid-cols-[0.8fr_1.2fr]">
-            <div>
-              <span className="stamp text-[10px] text-violet-2">For builders</span>
-              <h2 className="mt-3 font-serif text-4xl leading-tight sm:text-5xl">Storage for every other Portaldot app.</h2>
-              <p className="mt-5 text-text-2 leading-relaxed">
-                A TypeScript SDK, a CLI and an IPFS-style HTTP gateway. Point an <code className="font-mono text-sm">&lt;img&gt;</code>{" "}
-                at a CID and it loads from Portaldot.
-              </p>
-              <Link href="/docs" className="mt-6 inline-flex items-center gap-2 text-violet-2 hover:text-text">
-                Read the docs <ArrowRight className="size-4" />
-              </Link>
             </div>
-            <CodeTabs
-              tabs={[
-                { label: "SDK", code: sdk, title: "upload.ts" },
-                { label: "CLI", code: cli, title: "terminal" },
-                { label: "Gateway", code: gateway, title: "http" },
-              ]}
-            />
           </div>
         </section>
 
-        <section>
-          <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-4 py-24 sm:px-6 md:flex-row md:items-end md:justify-between">
-            <h2 className="max-w-xl font-serif text-5xl leading-[1.05]">Put something on Portaldot that isn&apos;t a transfer.</h2>
-            <Link
-              href="/drive"
-              className="inline-flex items-center gap-2 rounded-lg bg-violet px-6 py-3 font-medium text-white transition-[background-color,transform] duration-150 hover:bg-violet-2 active:scale-[0.98]"
-            >
-              Open Drive <ArrowRight className="size-4" />
-            </Link>
+        {/* developers */}
+        <section className="bg-bg-2 px-5 py-24">
+          <div className="mx-auto max-w-3xl">
+            <h2 className="headline text-center text-[40px] sm:text-[56px]">For every other Portaldot app.</h2>
+            <p className="mx-auto mt-4 max-w-xl text-center text-[19px] text-label-2">
+              An SDK, a CLI and an IPFS-style gateway. Point an image tag at a CID and it loads from Portaldot.
+            </p>
+            <div className="mt-10">
+              <CodeTabs
+                tabs={[
+                  { label: "SDK", code: sdk, title: "upload.ts" },
+                  { label: "CLI", code: cli, title: "Terminal" },
+                  { label: "Gateway", code: gateway, title: "HTTP" },
+                ]}
+              />
+            </div>
+            <div className="mt-8 text-center">
+              <MoreLink href="/docs">Read the docs</MoreLink>
+            </div>
+          </div>
+        </section>
+
+        <section className="px-5 py-28 text-center">
+          <h2 className="headline mx-auto max-w-3xl text-[40px] sm:text-[56px]">Put something on Portaldot that isn&apos;t a transfer.</h2>
+          <div className="mt-8">
+            <ButtonLink href="/drive" size="lg">
+              Open Drive
+            </ButtonLink>
           </div>
         </section>
       </main>

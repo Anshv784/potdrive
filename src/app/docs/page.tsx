@@ -25,12 +25,12 @@ export default function Docs() {
   return (
     <>
       <Nav />
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[13rem_1fr]">
+      <div className="mx-auto grid max-w-[1024px] gap-12 px-5 py-14 lg:grid-cols-[12rem_1fr]">
         <aside className="hidden lg:block">
           <nav className="sticky top-24 space-y-0.5 text-sm">
-            <div className="stamp mb-3 text-[10px] text-text-3">Docs</div>
+            <div className="mb-3 px-2 text-[13px] font-semibold">PotDrive</div>
             {toc.map(([id, label]) => (
-              <a key={id} href={`#${id}`} className="block rounded-md px-2 py-1.5 text-text-2 transition-colors duration-150 hover:bg-ink-2 hover:text-text">
+              <a key={id} href={`#${id}`} className="block rounded-lg px-2 py-1.5 text-[14px] text-label-2 transition-colors duration-200 hover:bg-bg-2 hover:text-label">
                 {label}
               </a>
             ))}
@@ -38,7 +38,8 @@ export default function Docs() {
         </aside>
 
         <article className="prose-doc min-w-0 max-w-3xl">
-          <h1 id="overview" className="font-serif text-5xl leading-tight text-text">PotDrive docs</h1>
+          <p className="eyebrow text-accent">Documentation</p>
+          <h1 id="overview" className="headline mt-1 text-[40px] sm:text-[48px]">PotDrive</h1>
           <p>
             PotDrive is storage middleware for Portaldot V3. It writes files into the chain&apos;s own{" "}
             <code>TransactionStorage</code> pallet, gives every file an IPFS CID, and reads it back through the node&apos;s bitswap

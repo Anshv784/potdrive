@@ -1,15 +1,15 @@
 // Static architecture diagram. Colors come from the theme tokens.
 export function Architecture() {
-  const box = "fill-[var(--ink-3)] stroke-[var(--line-2)]";
-  const text = "fill-[var(--text)] text-[13px]";
-  const sub = "fill-[var(--text-3)] text-[11px] font-mono";
-  const arrow = "stroke-[var(--violet-2)]";
+  const box = "fill-[var(--bg-2)] stroke-[var(--sep-2)]";
+  const text = "fill-[var(--label)] text-[13px]";
+  const sub = "fill-[var(--label-3)] text-[11px] font-mono";
+  const arrow = "stroke-[var(--accent)]";
   return (
-    <figure className="my-8 overflow-x-auto rounded-2xl border border-line bg-ink-2 p-4">
+    <figure className="my-8 overflow-x-auto rounded-[22px] bg-bg-2 p-4">
       <svg viewBox="0 0 860 430" className="min-w-[720px]" role="img" aria-label="PotDrive architecture">
         <defs>
           <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M0 0 10 5 0 10z" fill="var(--violet-2)" />
+            <path d="M0 0 10 5 0 10z" fill="var(--accent)" />
           </marker>
         </defs>
 
@@ -33,12 +33,12 @@ export function Architecture() {
         <text x="320" y="190" className={sub}>in-tab, swept after</text>
 
         {/* registry */}
-        <rect x="580" y="30" width="260" height="70" rx="12" className="fill-[var(--violet-soft)] stroke-[var(--violet)]" />
+        <rect x="580" y="30" width="260" height="70" rx="12" className="fill-[var(--accent-soft)] stroke-[var(--accent)]" />
         <text x="600" y="58" className={text} fontWeight={600}>PotDriveRegistry · Revive</text>
         <text x="600" y="80" className={sub}>owner · keep-alive · logs</text>
 
         {/* node */}
-        <rect x="580" y="140" width="260" height="130" rx="12" className="fill-[var(--violet-soft)] stroke-[var(--violet)]" />
+        <rect x="580" y="140" width="260" height="130" rx="12" className="fill-[var(--accent-soft)] stroke-[var(--accent)]" />
         <text x="600" y="168" className={text} fontWeight={600}>Portaldot V3 node</text>
         <text x="600" y="192" className={sub}>TransactionStorage</text>
         <text x="600" y="210" className={sub}>  store · renew · checkProof</text>
@@ -73,7 +73,7 @@ export function Architecture() {
         <path d="M500 330 C 700 300, 760 160, 740 104" className={arrow} strokeWidth="1.5" fill="none" markerEnd="url(#ah)" strokeDasharray="2 4" />
         <text x="770" y="300" className={sub}>renewed()</text>
       </svg>
-      <figcaption className="mt-2 text-center text-xs text-text-3">Solid arrows write to chain. Dashed arrows read or reimburse.</figcaption>
+      <figcaption className="mt-2 text-center text-xs text-label-3">Solid arrows write to chain. Dashed arrows read or reimburse.</figcaption>
     </figure>
   );
 }

@@ -59,40 +59,40 @@ export function Explore() {
   const retentionMs = NETWORK.retentionBlocks * NETWORK.blockTimeMs;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-      <span className="stamp text-[10px] text-violet-2">Network archive</span>
-      <h1 className="mt-2 max-w-3xl font-serif text-5xl leading-[1.05]">Everything Portaldot is holding right now.</h1>
-      <p className="mt-3 max-w-2xl text-text-2">
-        Read live from <code className="font-mono text-sm text-text">TransactionStorage.Transactions</code>. Every row is data validators
-        are currently required to prove they still have.
-      </p>
+    <div className="mx-auto max-w-[1024px] px-5 py-14">
+      <div className="text-center">
+        <p className="eyebrow text-accent">Network</p>
+        <h1 className="headline mx-auto mt-2 max-w-3xl text-[40px] sm:text-[56px]">Everything Portaldot is holding.</h1>
+        <p className="mx-auto mt-4 max-w-2xl text-[19px] text-label-2">
+          Read live from TransactionStorage. Every entry is data validators are required to prove they still have.
+        </p>
+      </div>
 
-      <dl className="mt-10 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-4">
+      <dl className="mt-12 grid grid-cols-2 gap-4 md:grid-cols-4">
         {[
           ["Stored items", stats ? num(data!.entries.length) : "…"],
           ["Bytes held", stats ? bytes(stats.total) : "…"],
           ["Blocks with data", stats ? num(stats.blocks) : "…"],
-          ["Next expiry", stats ? (stats.next ? `in ${duration((stats.next - data!.head) * NETWORK.blockTimeMs)}` : "–") : "…"],
+          ["Next expiry", stats ? (stats.next ? duration((stats.next - data!.head) * NETWORK.blockTimeMs) : "None") : "…"],
         ].map(([k, v]) => (
-          <div key={k} className="bg-ink-2 px-5 py-5">
-            <dt className="text-xs text-text-3">{k}</dt>
-            <dd className="mt-1 font-serif text-3xl tabular">{v}</dd>
+          <div key={k} className="rounded-[22px] bg-bg-2 p-6">
+            <dt className="text-[13px] text-label-2">{k}</dt>
+            <dd className="headline mt-1 text-[32px] tabular">{v}</dd>
           </div>
         ))}
       </dl>
 
-      {/* retention shelf */}
-      <section className="mt-10 rounded-2xl border border-line bg-ink-2 p-5 sm:p-6">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-sm font-medium">Retention shelf</h2>
-          <span className="text-xs text-text-3">each mark is one stored item, placed at the moment the chain may drop it</span>
+      <section className="mt-6 rounded-[22px] bg-bg-2 p-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-[17px] font-semibold">Retention timeline</h2>
+          <span className="text-[13px] text-label-2">Each mark is one stored item, placed where the chain may drop it.</span>
         </div>
         <div className="relative mt-6 h-28">
-          <div className="absolute inset-x-0 bottom-6 h-px bg-line-2" />
+          <div className="absolute inset-x-0 bottom-6 h-px bg-sep-2" />
           {Array.from({ length: 8 }, (_, d) => (
             <div key={d} className="absolute bottom-0 flex -translate-x-1/2 flex-col items-center" style={{ left: `${(d * DAY * 100) / retentionMs}%` }}>
-              <span className="mb-1 h-2 w-px bg-line-2" />
-              <span className="font-mono text-[10px] text-text-3">{d === 0 ? "now" : `+${d}d`}</span>
+              <span className="mb-1 h-2 w-px bg-sep-2" />
+              <span className="text-[11px] text-label-3">{d === 0 ? "Now" : `${d}d`}</span>
             </div>
           ))}
           {data?.entries.map((e, i) => {
@@ -104,26 +104,24 @@ export function Explore() {
                 key={`${e.block}-${e.index}`}
                 initial={{ scaleY: 0 }}
                 animate={{ scaleY: 1 }}
-                transition={{ delay: Math.min(i * 0.02, 0.6), duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ delay: Math.min(i * 0.02, 0.6), duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
                 title={`#${num(e.block)} · tx ${e.index} · ${bytes(e.size)}`}
-                className={`absolute bottom-6 w-[3px] origin-bottom rounded-t ${isRoot ? "bg-violet-2" : "bg-violet/60"}`}
+                className={`absolute bottom-6 w-1 origin-bottom rounded-full ${isRoot ? "bg-accent" : "bg-green"}`}
                 style={{ left: `${left}%`, height: h }}
               />
             );
           })}
-          {data && data.entries.length === 0 && (
-            <div className="absolute inset-x-0 top-6 text-center text-sm text-text-3">The shelf is empty. Nothing is stored on Portaldot right now.</div>
-          )}
+          {data && data.entries.length === 0 && <div className="absolute inset-x-0 top-6 text-center text-[15px] text-label-2">Nothing is stored on Portaldot right now.</div>}
         </div>
       </section>
 
       {data?.registry && data.registry.files.length > 0 && (
-        <section className="mt-12">
+        <section className="mt-14">
           <div className="mb-4 flex items-baseline justify-between">
-            <h2 className="stamp text-[11px] text-text-3">Public PotDrive records</h2>
-            <span className="font-mono text-xs text-text-3">{num(data.registry.total)} registered in total</span>
+            <h2 className="headline text-[28px]">Public files</h2>
+            <span className="text-[13px] text-label-2">{num(data.registry.total)} registered</span>
           </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
             {data.registry.files.map((f, i) => (
               <FileCard
                 key={f.root}
@@ -144,53 +142,53 @@ export function Explore() {
         </section>
       )}
 
-      <section className="mt-12">
-        <h2 className="stamp mb-4 text-[11px] text-text-3">Raw TransactionStorage</h2>
-        <div className="overflow-x-auto rounded-2xl border border-line">
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="bg-ink-2 text-xs text-text-3">
+      <section className="mt-14">
+        <h2 className="headline mb-4 text-[28px]">TransactionStorage</h2>
+        <div className="overflow-x-auto rounded-[22px] bg-bg-2">
+          <table className="w-full min-w-[640px] text-left text-[15px]">
+            <thead className="text-[13px] text-label-2">
               <tr>
-                <th className="px-4 py-2.5 font-normal">Block</th>
-                <th className="px-4 py-2.5 font-normal">Tx</th>
-                <th className="px-4 py-2.5 font-normal">Size</th>
-                <th className="px-4 py-2.5 font-normal">Content hash</th>
-                <th className="px-4 py-2.5 text-right font-normal">Expires</th>
+                <th className="px-5 py-3 font-normal">Block</th>
+                <th className="px-5 py-3 font-normal">Index</th>
+                <th className="px-5 py-3 font-normal">Size</th>
+                <th className="px-5 py-3 font-normal">Content ID</th>
+                <th className="px-5 py-3 text-right font-normal">Expires in</th>
               </tr>
             </thead>
-            <tbody className="font-mono text-xs">
+            <tbody>
               {!data && !error &&
                 [0, 1, 2].map((i) => (
-                  <tr key={i} className="border-t border-line">
-                    <td colSpan={5} className="px-4 py-3">
-                      <div className="h-3 w-full animate-pulse rounded bg-ink-3" />
+                  <tr key={i} className="border-t border-sep">
+                    <td colSpan={5} className="px-5 py-3.5">
+                      <div className="h-3 w-full animate-pulse rounded-full bg-fill" />
                     </td>
                   </tr>
                 ))}
               {error && (
-                <tr className="border-t border-line">
-                  <td colSpan={5} className="px-4 py-6 text-center text-text-3">The Portaldot node didn&apos;t answer. Retrying every 15 seconds.</td>
+                <tr className="border-t border-sep">
+                  <td colSpan={5} className="px-5 py-8 text-center text-label-2">Can&apos;t reach the Portaldot node. Retrying every 15 seconds.</td>
                 </tr>
               )}
               {data?.entries.length === 0 && (
-                <tr className="border-t border-line">
-                  <td colSpan={5} className="px-4 py-6 text-center text-text-3">No entries.</td>
+                <tr className="border-t border-sep">
+                  <td colSpan={5} className="px-5 py-8 text-center text-label-2">No entries yet.</td>
                 </tr>
               )}
               {data?.entries.slice(0, 200).map((e) => {
                 const isRoot = roots.has(e.contentHash.toLowerCase());
                 const cid = cidFromContentHash(e.contentHash, isRoot ? DAG_PB : RAW).toString();
                 return (
-                  <tr key={`${e.block}-${e.index}`} className="border-t border-line text-text-2 hover:bg-ink-2">
-                    <td className="px-4 py-2.5 tabular">#{num(e.block)}</td>
-                    <td className="px-4 py-2.5 tabular">{e.index}</td>
-                    <td className="px-4 py-2.5 tabular">{bytes(e.size)}</td>
-                    <td className="px-4 py-2.5">
-                      <Link href={`/f/${cid}`} className="hover:text-violet-2">
-                        {shortCid(cid, 14, 8)}
+                  <tr key={`${e.block}-${e.index}`} className="border-t border-sep">
+                    <td className="px-5 py-3 tabular">{num(e.block)}</td>
+                    <td className="px-5 py-3 tabular">{e.index}</td>
+                    <td className="px-5 py-3 tabular">{bytes(e.size)}</td>
+                    <td className="px-5 py-3">
+                      <Link href={`/f/${cid}`} className="font-mono text-[13px] text-link hover:underline">
+                        {shortCid(cid, 12, 6)}
                       </Link>
-                      {isRoot && <span className="ml-2 rounded bg-violet-soft px-1.5 py-0.5 text-[10px] text-violet-2">root</span>}
+                      {isRoot && <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] text-accent">Root</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular">{duration((e.expiresAt - data.head) * NETWORK.blockTimeMs)}</td>
+                    <td className="px-5 py-3 text-right tabular text-label-2">{duration((e.expiresAt - data.head) * NETWORK.blockTimeMs)}</td>
                   </tr>
                 );
               })}

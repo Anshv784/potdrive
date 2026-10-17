@@ -31,9 +31,9 @@ export function useHead(interval = 6000) {
 export function ChainPulse({ className = "" }: { className?: string }) {
   const { head, down } = useHead();
   return (
-    <span className={`inline-flex items-center gap-2 font-mono text-[11px] text-text-2 ${className}`} title="Portaldot V3 testnet, best block">
-      <span className={`size-1.5 rounded-full ${down ? "bg-bad" : "bg-ok live-dot"}`} />
-      <span className="tabular">{down ? "node unreachable" : head === null ? "connecting" : `#${head.toLocaleString("en-US")}`}</span>
+    <span className={`inline-flex items-center gap-1.5 text-[12px] text-label-2 ${className}`} title="Portaldot V3 testnet, best block">
+      <span className={`size-1.5 rounded-full ${down ? "bg-red" : "bg-green pulse-soft"}`} />
+      <span className="tabular">{down ? "Offline" : head === null ? "Connecting" : `Block ${head.toLocaleString("en-US")}`}</span>
     </span>
   );
 }

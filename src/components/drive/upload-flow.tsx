@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowUpRight, EyeOff, Lock, ShieldCheck, X } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, Lock } from "lucide-react";
 import type { ApiPromise } from "@polkadot/api";
 import type { PreparedFile } from "@potdrive/sdk/prepare";
 import type { BlockState, Estimate, Stage, UploadEvent, UploadResult } from "@potdrive/sdk/upload";
@@ -12,20 +12,21 @@ import { REGISTRY, SITE } from "@/lib/config";
 import { signerOf, type InjectedAccount } from "@/lib/wallet";
 import { saveLocalFile, sessionStore } from "@/lib/library";
 import { fakeEstimate, fakeUpload } from "@/lib/simulate";
-import { BlockGrid, StageRail } from "./blocks";
+import { BlockGrid, StepList } from "./blocks";
 import { CopyButton } from "../code";
+import { Button, DocIcon, Group, Ring, Row, Segmented, Spinner, Switch } from "../ui";
 
 const STAGES: { id: Stage; label: string }[] = [
-  { id: "authorize", label: "Sign once" },
-  { id: "store", label: "Store blocks" },
-  { id: "verify", label: "Verify" },
-  { id: "sweep", label: "Return change" },
+  { id: "authorize", label: "Approve in your wallet" },
+  { id: "store", label: "Store blocks on Portaldot" },
+  { id: "verify", label: "Verify from the chain" },
+  { id: "sweep", label: "Return unspent tPOT" },
 ];
 
 const KEEP = [
-  { periods: 0, label: "1 week", sub: "No keep-alive" },
-  { periods: 4, label: "5 weeks", sub: "+4 renewals" },
-  { periods: 12, label: "13 weeks", sub: "+12 renewals" },
+  { periods: 0, label: "1 week" },
+  { periods: 4, label: "5 weeks" },
+  { periods: 12, label: "13 weeks" },
 ];
 
 type Phase = "preparing" | "review" | "running" | "done" | "error";
@@ -183,186 +184,164 @@ export function UploadFlow({
 
   const link = result ? `${SITE}/f/${result.root}${isPrivate ? "" : `?name=${encodeURIComponent(file.name)}`}${result.key ? `#k=${result.key}` : ""}` : "";
 
+
+  const done = blocks.filter((b) => b.status === "inBlock" || b.status === "finalized" || b.status === "skipped").length;
+  const progress = blocks.length ? done / blocks.length : 0;
+  const [showLog, setShowLog] = useState(false);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-6" role="dialog" aria-modal>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6" role="dialog" aria-modal aria-label="Upload">
       <motion.div
-        initial={{ opacity: 0, y: 24 }}
+        initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        className="max-h-[94dvh] w-full max-w-2xl overflow-y-auto rounded-t-2xl border border-line bg-ink-2 sm:rounded-2xl"
+        transition={{ type: "spring", stiffness: 380, damping: 36 }}
+        className="max-h-[94dvh] w-full max-w-[540px] overflow-y-auto rounded-t-[22px] bg-bg-2 shadow-float sm:rounded-[22px]"
       >
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-ink-2/95 px-5 py-3 backdrop-blur">
-          <span className="stamp text-[10px] text-text-3">
-            {phase === "running" ? `Storing · ${(elapsed / 1000).toFixed(1)}s` : phase === "done" ? "Stored on Portaldot" : "New upload"}
-          </span>
-          {phase !== "running" && (
-            <button onClick={onClose} aria-label="Close" className="rounded-md p-1 text-text-3 hover:bg-ink-3 hover:text-text">
-              <X className="size-4" />
-            </button>
-          )}
+        {/* sheet header */}
+        <div className="material sticky top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center border-b border-sep px-4 py-3">
+          <div>
+            {phase !== "running" && phase !== "done" && (
+              <button onClick={onClose} className="text-[17px] text-link">
+                Cancel
+              </button>
+            )}
+          </div>
+          <div className="text-[17px] font-semibold">{phase === "done" ? "Stored" : phase === "running" ? "Storing" : "New Upload"}</div>
+          <div className="text-right">
+            {phase === "done" && (
+              <button onClick={onClose} className="text-[17px] font-semibold text-link">
+                Done
+              </button>
+            )}
+            {phase === "running" && <span className="text-[13px] text-label-2 tabular">{(elapsed / 1000).toFixed(1)}s</span>}
+          </div>
         </div>
 
-        <div className="p-5 sm:p-6">
-          {/* record card */}
-          <div className="paper flex items-center gap-4 rounded-lg px-4 py-3.5">
-            <div className="grid size-11 shrink-0 place-items-center rounded-md border border-paper-line bg-paper-2 font-mono text-[10px] font-semibold text-paper-mute">
-              {mimeLabel(file.type, file.name)}
+        <div className="space-y-6 px-4 pb-8 pt-6 sm:px-6">
+          {/* file */}
+          <div className="flex flex-col items-center text-center">
+            <DocIcon type={isPrivate ? "LOCK" : mimeLabel(file.type, file.name)} size={56} />
+            <div className="mt-3 max-w-full truncate text-[17px] font-semibold">{file.name}</div>
+            <div className="text-[13px] text-label-2 tabular">
+              {bytes(file.size)}
+              {prepared && ` · ${prepared.blocks.length} block${prepared.blocks.length === 1 ? "" : "s"} on chain`}
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-medium">{file.name}</div>
-              <div className="mt-0.5 font-mono text-[11px] text-paper-mute tabular">
-                {bytes(file.size)}
-                {prepared && ` · ${prepared.blocks.length} block${prepared.blocks.length === 1 ? "" : "s"} on chain`}
-                {prepared?.private && " · sealed"}
-              </div>
-            </div>
-            {isPrivate && <Lock className="size-4 text-paper-mute" />}
           </div>
 
           <AnimatePresence mode="wait">
             {(phase === "review" || phase === "preparing") && (
-              <motion.div key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-                {/* private */}
-                <button
-                  onClick={() => setPrivate((p) => !p)}
-                  className={`mt-5 flex w-full items-start gap-3 rounded-lg border p-4 text-left transition-colors duration-150 ${
-                    isPrivate ? "border-violet bg-violet-soft" : "border-line hover:border-line-2"
-                  }`}
-                  aria-pressed={isPrivate}
+              <motion.div key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="space-y-6">
+                <Group footer="Sealed with AES-256-GCM in this tab. The chain sees only ciphertext; name and type are hidden too. The key goes in the share link after the #.">
+                  <Row label={<span className="inline-flex items-center gap-2"><Lock className="size-4 text-label-2" />Private file</span>}>
+                    <Switch checked={isPrivate} onChange={setPrivate} label="Private file" />
+                  </Row>
+                </Group>
+
+                <Group
+                  title="Keep on Portaldot"
+                  footer={
+                    REGISTRY
+                      ? "Each payment keeps data 100,800 blocks (about a week). Extra weeks are prepaid to the registry and spent by the keeper. Unused balance is refundable."
+                      : "Each payment keeps data 100,800 blocks (about a week). Prepaid keep-alive needs the registry, which isn't deployed on this build."
+                  }
                 >
-                  <EyeOff className={`mt-0.5 size-4 shrink-0 ${isPrivate ? "text-violet-2" : "text-text-3"}`} />
-                  <span className="flex-1">
-                    <span className="block text-sm font-medium">Private file</span>
-                    <span className="mt-1 block text-xs leading-relaxed text-text-2">
-                      Sealed with AES-256-GCM before it leaves this tab. The chain only sees ciphertext, and the name and type are
-                      hidden too. The key lives in the share link after the #, which browsers never send to a server.
-                    </span>
-                  </span>
-                  <span className={`mt-0.5 h-5 w-9 shrink-0 rounded-full p-0.5 transition-colors duration-200 ${isPrivate ? "bg-violet" : "bg-line-2"}`}>
-                    <span className={`block size-4 rounded-full bg-white transition-transform duration-200 ${isPrivate ? "translate-x-4" : ""}`} />
-                  </span>
-                </button>
+                  <div className="px-3 py-2.5">
+                    <Segmented
+                      label="Keep on Portaldot"
+                      value={periods}
+                      onChange={setPeriods}
+                      options={KEEP.map((k) => ({ value: k.periods, label: k.label, disabled: !REGISTRY && k.periods > 0 }))}
+                    />
+                  </div>
+                </Group>
 
-                {/* keep alive */}
-                <div className="mt-5">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-sm font-medium">How long to keep it</span>
-                    <span className="text-xs text-text-3">Portaldot keeps data 100,800 blocks (~7 days) per payment</span>
-                  </div>
-                  <div className="mt-2 grid grid-cols-3 gap-2">
-                    {KEEP.map((k) => (
-                      <button
-                        key={k.periods}
-                        disabled={!REGISTRY && k.periods > 0}
-                        onClick={() => setPeriods(k.periods)}
-                        className={`rounded-lg border px-3 py-2.5 text-left transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40 ${
-                          periods === k.periods ? "border-violet bg-violet-soft" : "border-line hover:border-line-2"
-                        }`}
-                      >
-                        <span className="block text-sm font-medium">{k.label}</span>
-                        <span className="block text-[11px] text-text-3">{k.sub}</span>
-                      </button>
-                    ))}
-                  </div>
-                  {!REGISTRY && <p className="mt-2 text-xs text-text-3">Keep-alive needs the registry contract, which isn&apos;t deployed on this build.</p>}
-                </div>
-
-                {/* cost */}
-                <div className="mt-5 rounded-lg border border-line">
-                  {[
-                    ["Storage fees", estimate?.storeFees, "paid by the upload key, per block"],
-                    ...(REGISTRY ? ([["Registry record", estimate ? estimate.registryFee + estimate.registryDeposit : undefined, "fee + storage deposit"]] as const) : []),
-                    ...(keepAlive > 0n ? ([["Keep-alive, prepaid", keepAlive, `${periods} renewals, refundable`]] as const) : []),
-                  ].map(([k, v, sub]) => (
-                    <div key={k as string} className="flex items-center justify-between border-b border-line px-4 py-2.5 last:border-0">
-                      <span>
-                        <span className="block text-sm text-text-2">{k}</span>
-                        <span className="block text-[11px] text-text-3">{sub}</span>
-                      </span>
-                      <span className="font-mono text-sm tabular">{v === undefined || estimating ? "…" : `${formatPot(v as bigint, 3)} tPOT`}</span>
-                    </div>
-                  ))}
-                  <div className="flex items-center justify-between bg-ink-3/60 px-4 py-3">
-                    <span className="text-sm font-medium">Leaves your wallet, at most</span>
-                    <span className="font-mono text-sm font-medium tabular">{estimate ? `${formatPot(estimate.total, 3)} tPOT` : "…"}</span>
-                  </div>
-                </div>
-                <p className="mt-2 text-[11px] leading-relaxed text-text-3">
-                  The upload key gets a 15% buffer over the estimate. Whatever it doesn&apos;t spend is sent back to you in the last step.
-                </p>
+                <Group title="Cost" footer="The upload key gets a 15% buffer over the estimate. Whatever it doesn't spend comes back to you at the end.">
+                  <Row label="Storage" sub="Paid per block by the upload key" detail={estimate && !estimating ? `${formatPot(estimate.storeFees, 2)} tPOT` : <Spinner className="size-4 text-label-3" />} />
+                  {REGISTRY && <Row label="Registry record" sub="Fee and storage deposit" detail={estimate ? `${formatPot(estimate.registryFee + estimate.registryDeposit, 2)} tPOT` : "…"} />}
+                  {keepAlive > 0n && <Row label="Keep-alive" sub={`${periods} renewals, refundable`} detail={`${formatPot(keepAlive, 2)} tPOT`} />}
+                  <Row label={<span className="font-semibold">Total, at most</span>} detail={<span className="font-semibold text-label">{estimate ? `${formatPot(estimate.total, 2)} tPOT` : "…"}</span>} />
+                </Group>
 
                 {estimate?.alreadyStored && (
-                  <p className="mt-4 rounded-lg border border-ok/40 bg-ok-soft px-4 py-3 text-sm text-text">
-                    This exact file is already on Portaldot. Nothing new will be stored; you only {REGISTRY ? "claim the record" : "get the link"}.
-                  </p>
+                  <div className="rounded-xl bg-green-soft px-4 py-3 text-[15px]">This exact file is already on Portaldot. Nothing new is stored; you only {REGISTRY ? "claim the record" : "get the link"}.</div>
                 )}
                 {short && (
-                  <p className="mt-4 rounded-lg border border-warn/40 bg-warn-soft px-4 py-3 text-sm text-text">
-                    You have {formatPot(balance!, 2)} tPOT. Test POT comes from the Portaldot team: register a native address on the
-                    DoraHacks Hacker House page, or open a ticket in the Portaldot Discord.
-                  </p>
+                  <div className="rounded-xl bg-orange-soft px-4 py-3 text-[15px]">
+                    You have {formatPot(balance!, 2)} tPOT. Test POT comes from the Portaldot team: register a native address on the DoraHacks Hacker House page, or open a ticket in the Portaldot Discord.
+                  </div>
                 )}
-                {error && <p className="mt-4 text-sm text-bad">{error}</p>}
+                {error && <p className="px-4 text-[13px] text-red">{error}</p>}
 
-                <button
-                  onClick={start}
-                  disabled={!estimate || !prepared || phase === "preparing" || short}
-                  className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-violet px-5 py-3 font-medium text-white transition-[background-color,transform,opacity] duration-150 hover:bg-violet-2 active:scale-[0.99] disabled:opacity-40"
-                >
-                  <ShieldCheck className="size-4" />
-                  {phase === "preparing" ? "Hashing in your browser…" : !estimate ? "Estimating fees…" : "Sign once and store"}
-                </button>
+                <div>
+                  <Button size="lg" className="w-full" onClick={start} disabled={!estimate || !prepared || phase === "preparing" || short}>
+                    {phase === "preparing" ? "Hashing on this device…" : !estimate ? "Estimating…" : "Store on Portaldot"}
+                  </Button>
+                  <p className="mt-2 text-center text-[13px] text-label-2">You&apos;ll approve one transaction in your wallet.</p>
+                </div>
               </motion.div>
             )}
 
             {(phase === "running" || phase === "done" || (phase === "error" && blocks.length > 0)) && (
-              <motion.div key="run" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }} className="mt-5">
-                <StageRail stages={STAGES} current={stage} done={phase === "done"} />
-                <div className="mt-5">
-                  <BlockGrid blocks={blocks} />
+              <motion.div key="run" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }} className="space-y-6">
+                <div className="flex items-center gap-5 rounded-xl bg-surface p-5">
+                  <div className="relative grid place-items-center">
+                    <Ring value={phase === "done" ? 1 : progress} size={84} stroke={7} tone={phase === "done" ? "var(--green)" : "var(--accent)"} />
+                    <span className="absolute text-[17px] font-semibold tabular">
+                      {phase === "done" ? <Check className="size-7 text-green" strokeWidth={3} /> : `${Math.round(progress * 100)}%`}
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <StepList
+                      steps={STAGES.map((s) => ({ ...s, detail: s.id === "store" && blocks.length ? `${done}/${blocks.length}` : undefined }))}
+                      current={stage}
+                      done={phase === "done"}
+                      failed={phase === "error"}
+                    />
+                  </div>
                 </div>
-                <ol className="mt-5 space-y-1 rounded-lg border border-line bg-ink p-3 font-mono text-[11px] text-text-2" aria-live="polite">
-                  {stage === "authorize" && log.length < 2 && <li className="text-text">Waiting for your wallet. Approve the one signature.</li>}
-                  {log.map((l, i) => (
-                    <li key={i}>
-                      <span className="text-text-3">{String(i + 1).padStart(2, "0")} </span>
-                      {l}
-                    </li>
-                  ))}
-                </ol>
+
+                <div className="rounded-xl bg-surface p-4">
+                  <BlockGrid blocks={blocks} />
+                  <button onClick={() => setShowLog((s) => !s)} className="mt-4 inline-flex items-center gap-1 text-[13px] text-link">
+                    {showLog ? "Hide details" : "Show details"} <ChevronDown className={`size-3.5 transition-transform duration-200 ${showLog ? "rotate-180" : ""}`} />
+                  </button>
+                  {showLog && (
+                    <ol className="mt-2 space-y-1 font-mono text-[11.5px] text-label-2 [letter-spacing:0]" aria-live="polite">
+                      {log.map((l, i) => (
+                        <li key={i}>{l}</li>
+                      ))}
+                    </ol>
+                  )}
+                  {stage === "authorize" && phase === "running" && <p className="mt-3 text-[13px] text-label-2">Waiting for your wallet. Approve the one transaction to continue.</p>}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
 
           {phase === "done" && result && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.35 }} className="mt-5 rounded-xl border border-violet/50 bg-violet-soft p-4">
-              <div className="stamp text-[10px] text-violet-2">{result.key ? "Private link · anyone with it can open the file" : "Share link"}</div>
-              <div className="mt-2 break-all font-mono text-xs text-text">{link}</div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <CopyButton text={link} label="Copy link" className="border border-line-2 text-text-2" />
-                <a href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-line-2 px-2 py-1 text-xs text-text-2 hover:text-text">
-                  Open <ArrowUpRight className="size-3.5" />
-                </a>
-                <button onClick={onClose} className="ml-auto rounded-md bg-violet px-3 py-1 text-xs font-medium text-white hover:bg-violet-2">
-                  Done
-                </button>
-              </div>
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.35 }}>
+              <Group title={result.key ? "Private link" : "Share link"} footer={result.key ? "Anyone with this link can open the file. The key after # never reaches a server." : "Anyone with the link can open the file. Their browser verifies every block."}>
+                <div className="break-all px-4 py-3 font-mono text-[12px] text-label-2 [letter-spacing:0]">{link}</div>
+                <div className="flex items-center gap-1 px-2 py-1.5">
+                  <CopyButton text={link} label="Copy Link" className="text-[15px]" />
+                  <a href={link} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 rounded-full px-2 py-1 text-[15px] text-link hover:bg-accent-soft">
+                    Open <ArrowUpRight className="size-4" />
+                  </a>
+                </div>
+              </Group>
             </motion.div>
           )}
 
           {phase === "error" && (
-            <div className="mt-5 rounded-lg border border-bad/40 bg-bad-soft p-4 text-sm">
-              <div className="font-medium">Upload stopped</div>
-              <p className="mt-1 text-text-2">{error}</p>
+            <div className="rounded-xl bg-red-soft p-4 text-[15px]">
+              <div className="font-semibold">Upload stopped</div>
+              <p className="mt-1 text-label-2">{error}</p>
               {blocks.some((b) => b.status === "inBlock" || b.status === "finalized") && (
-                <p className="mt-2 text-xs text-text-3">
-                  Blocks already stored stay on chain. The upload key was saved in this browser; the Drive will offer to return
-                  its balance.
-                </p>
+                <p className="mt-2 text-[13px] text-label-2">Blocks already stored stay on chain. The upload key is saved in this browser and the Drive will offer to return its balance.</p>
               )}
-              <button onClick={onClose} className="mt-3 rounded-md border border-line-2 px-3 py-1.5 text-xs text-text-2 hover:text-text">
+              <Button variant="gray" size="sm" className="mt-3" onClick={onClose}>
                 Close
-              </button>
+              </Button>
             </div>
           )}
         </div>

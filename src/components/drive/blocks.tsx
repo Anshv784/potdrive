@@ -3,90 +3,73 @@
 import { motion } from "motion/react";
 import { Check, X } from "lucide-react";
 import type { BlockState } from "@potdrive/sdk/upload";
-import { shortCid } from "@potdrive/sdk/cid";
 import { bytes } from "@/lib/format";
-
-const label: Record<BlockState["status"], string> = {
-  queued: "queued",
-  skipped: "on chain",
-  sent: "sending",
-  inBlock: "in block",
-  finalized: "final",
-  failed: "failed",
-};
-
-export function BlockTile({ b }: { b: BlockState }) {
-  const tone =
-    b.status === "finalized" || b.status === "skipped"
-      ? "paper border-paper-line"
-      : b.status === "inBlock"
-        ? "border-violet bg-violet text-white"
-        : b.status === "sent"
-          ? "border-violet/70 bg-violet-soft text-text"
-          : b.status === "failed"
-            ? "border-bad bg-bad-soft text-text"
-            : "border-dashed border-line-2 bg-transparent text-text-3";
-  return (
-    <motion.li
-      layout
-      initial={{ opacity: 0, scale: 0.94 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-      className={`relative flex min-h-[86px] flex-col justify-between rounded-lg border p-2.5 transition-[background-color,border-color,color] duration-300 ${tone}`}
-      title={b.cid}
-    >
-      <div className="flex items-center justify-between font-mono text-[10px]">
-        <span className={b.kind === "root" ? "font-semibold" : ""}>{b.kind === "root" ? "ROOT" : `#${String(b.i + 1).padStart(2, "0")}`}</span>
-        {b.status === "finalized" || b.status === "skipped" ? (
-          <Check className="size-3.5 text-violet" />
-        ) : b.status === "failed" ? (
-          <X className="size-3.5 text-bad" />
-        ) : b.status === "sent" ? (
-          <span className="size-1.5 rounded-full bg-violet-2 live-dot" />
-        ) : null}
-      </div>
-      <div>
-        <div className="truncate font-mono text-[10px] opacity-70">{shortCid(b.cid, 6, 4)}</div>
-        <div className="mt-0.5 flex items-center justify-between font-mono text-[10px]">
-          <span className="tabular opacity-80">{bytes(b.size)}</span>
-          <span className="tabular">{b.blockNumber ? `#${b.blockNumber.toLocaleString("en-US")}` : label[b.status]}</span>
-        </div>
-      </div>
-    </motion.li>
-  );
-}
+import { Spinner } from "../ui";
 
 export function BlockGrid({ blocks }: { blocks: BlockState[] }) {
   return (
-    <ol className="grid grid-cols-3 gap-2 sm:grid-cols-5" aria-label="Upload progress by block">
-      {blocks.map((b) => (
-        <BlockTile key={b.i} b={b} />
-      ))}
+    <ol className="grid grid-cols-5 gap-2 sm:grid-cols-8" aria-label="Upload progress by block">
+      {blocks.map((b) => {
+        const done = b.status === "finalized" || b.status === "skipped" || b.status === "inBlock";
+        const bg =
+          b.status === "failed"
+            ? "bg-red"
+            : done
+              ? b.kind === "root"
+                ? "bg-accent"
+                : "bg-green"
+              : b.status === "sent"
+                ? "bg-accent-soft"
+                : "bg-fill";
+        return (
+          <motion.li
+            key={b.i}
+            layout
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            title={`${b.kind === "root" ? "Root" : `Block ${b.i + 1}`} · ${bytes(b.size)}${b.blockNumber ? ` · in #${b.blockNumber.toLocaleString("en-US")}` : ""}`}
+            className={`grid aspect-square place-items-center rounded-[10px] transition-colors duration-300 ${bg}`}
+          >
+            {b.status === "failed" ? (
+              <X className="size-4 text-white" strokeWidth={3} />
+            ) : done ? (
+              <Check className="size-4 text-white" strokeWidth={3} />
+            ) : b.status === "sent" ? (
+              <Spinner className="size-4 text-accent" />
+            ) : (
+              <span className="text-[11px] text-label-3 tabular">{b.kind === "root" ? "R" : b.i + 1}</span>
+            )}
+          </motion.li>
+        );
+      })}
     </ol>
   );
 }
 
-export function StageRail({ stages, current, done }: { stages: { id: string; label: string }[]; current: string; done: boolean }) {
-  const at = stages.findIndex((s) => s.id === current);
+export function StepList({ steps, current, done, failed }: { steps: { id: string; label: string; detail?: string }[]; current: string; done: boolean; failed?: boolean }) {
+  const at = steps.findIndex((s) => s.id === current);
   return (
-    <ol className="flex flex-wrap items-center gap-x-2 gap-y-2 text-xs">
-      {stages.map((s, i) => {
-        const state = done || i < at ? "done" : i === at ? "now" : "next";
+    <ol className="space-y-3">
+      {steps.map((s, i) => {
+        const state = done || i < at ? "done" : i === at ? (failed ? "failed" : "now") : "next";
         return (
-          <li key={s.id} className="flex items-center gap-2">
+          <li key={s.id} className="flex items-center gap-3">
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors duration-300 ${
-                state === "done"
-                  ? "border-violet/50 bg-violet-soft text-violet-2"
-                  : state === "now"
-                    ? "border-violet text-text"
-                    : "border-line text-text-3"
+              className={`grid size-6 shrink-0 place-items-center rounded-full transition-colors duration-300 ${
+                state === "done" ? "bg-green" : state === "failed" ? "bg-red" : state === "now" ? "bg-accent-soft" : "bg-fill"
               }`}
             >
-              {state === "done" ? <Check className="size-3" /> : state === "now" ? <span className="size-1.5 rounded-full bg-violet-2 live-dot" /> : null}
-              {s.label}
+              {state === "done" ? (
+                <Check className="size-3.5 text-white" strokeWidth={3} />
+              ) : state === "failed" ? (
+                <X className="size-3.5 text-white" strokeWidth={3} />
+              ) : state === "now" ? (
+                <Spinner className="size-3.5 text-accent" />
+              ) : null}
             </span>
-            {i < stages.length - 1 && <span className="h-px w-3 bg-line-2" />}
+            <span className={`flex-1 text-[15px] ${state === "next" ? "text-label-3" : "text-label"}`}>{s.label}</span>
+            {s.detail && <span className="text-[13px] text-label-2 tabular">{s.detail}</span>}
           </li>
         );
       })}

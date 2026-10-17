@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Upload } from "lucide-react";
+import { CloudUpload, Plus } from "lucide-react";
 import { motion } from "motion/react";
 import { useApi, useBalance } from "@/lib/use-api";
 import { rememberAccount, rememberedAccount, type InjectedAccount } from "@/lib/wallet";
@@ -12,6 +12,7 @@ import { REGISTRY } from "@/lib/config";
 import { SIMULATE } from "@/lib/simulate";
 import { bytes } from "@/lib/format";
 import { useHead } from "../chain-pulse";
+import { Button } from "../ui";
 import { AccountChip, ConnectCard } from "./connect";
 import { FileCard, type CardFile } from "./file-card";
 import { UploadFlow } from "./upload-flow";
@@ -114,18 +115,20 @@ export function Drive() {
 
   const total = useMemo(() => files.reduce((s, f) => s + f.size, 0), [files]);
 
+  const picker = useRef<HTMLInputElement>(null);
+
   if (!account || picking) {
     return (
-      <div className="px-4 py-16 sm:px-6">
+      <div className="px-5 py-20">
         <ConnectCard onPick={pick} />
-        {apiError && <p className="mt-4 text-center text-sm text-bad">Portaldot node unreachable: {apiError}</p>}
+        {apiError && <p className="mt-6 text-center text-[13px] text-red">Portaldot node unreachable: {apiError}</p>}
       </div>
     );
   }
 
   return (
     <div
-      className="mx-auto max-w-6xl px-4 py-8 sm:px-6"
+      className="mx-auto min-h-[70vh] max-w-[1024px] px-5 py-10"
       onDragOver={(e) => {
         e.preventDefault();
         setOver(true);
@@ -140,83 +143,82 @@ export function Drive() {
         if (f) choose(f);
       }}
     >
+      <input
+        ref={picker}
+        type="file"
+        className="sr-only"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) choose(f);
+          e.target.value = "";
+        }}
+      />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-serif text-5xl">Your drive</h1>
-          <p className="mt-2 font-mono text-xs text-text-3 tabular">
-            {files.length} file{files.length === 1 ? "" : "s"} · {bytes(total)} on Portaldot
+          <h1 className="headline text-[40px] sm:text-[48px]">Drive</h1>
+          <p className="mt-1 text-[15px] text-label-2 tabular">
+            {files.length} item{files.length === 1 ? "" : "s"} · {bytes(total)} on Portaldot
             {simulate && " · simulation (dev only)"}
           </p>
         </div>
-        <AccountChip
-          account={account}
-          balance={simulate ? 5_000n * 10n ** 14n : balance}
-          onSwitch={() => setPicking(true)}
-          onDisconnect={() => {
-            rememberAccount(null);
-            setAccount(null);
-          }}
-        />
+        <div className="flex items-center gap-3">
+          <AccountChip
+            account={account}
+            balance={simulate ? 5_000n * 10n ** 14n : balance}
+            onSwitch={() => setPicking(true)}
+            onDisconnect={() => {
+              rememberAccount(null);
+              setAccount(null);
+            }}
+          />
+          <Button onClick={() => picker.current?.click()}>
+            <Plus className="size-4" strokeWidth={2.5} /> Upload
+          </Button>
+        </div>
       </div>
 
       {stranded > 0 && (
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warn/40 bg-warn-soft px-4 py-3 text-sm">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-orange-soft px-4 py-3 text-[15px]">
           <span>An upload in this browser didn&apos;t finish. Its upload key may still hold some of your tPOT.</span>
-          <button onClick={recover} className="rounded-md bg-warn px-3 py-1.5 text-xs font-medium text-ink">
-            Return it to my account
-          </button>
+          <Button size="sm" onClick={recover}>
+            Return it
+          </Button>
         </div>
       )}
+      {tooBig && <p className="mt-4 text-[13px] text-orange">{tooBig}</p>}
 
-      <label
-        className={`mt-8 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-6 py-12 text-center transition-[border-color,background-color] duration-200 ${
-          over ? "border-violet bg-violet-soft" : "border-line-2 bg-ink-2/60 hover:border-text-3"
-        }`}
-      >
-        <input
-          type="file"
-          className="sr-only"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) choose(f);
-            e.target.value = "";
-          }}
-        />
-        <span className="grid size-12 place-items-center rounded-xl bg-violet-soft text-violet-2">
-          <Upload className="size-5" />
-        </span>
-        <span className="mt-4 text-lg font-medium">Drop a file, or click to choose</span>
-        <span className="mt-1 max-w-md text-sm text-text-3">
-          Up to 64 MiB. Hashed in your browser first, then stored in Portaldot&apos;s TransactionStorage with one signature.
-        </span>
-      </label>
-
-      {tooBig && <p className="mt-3 text-sm text-warn">{tooBig}</p>}
-
-      <section className="mt-10">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="stamp text-[11px] text-text-3">Records</h2>
-          {REGISTRY ? null : <span className="text-xs text-text-3">Registry not deployed yet: showing files remembered by this browser</span>}
-        </div>
+      <div className="mt-8 border-t border-sep pt-6">
         {loadingFiles && files.length === 0 ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-44 animate-pulse rounded-xl bg-ink-3" />
+              <div key={i} className="h-44 animate-pulse rounded-2xl bg-bg-2" />
             ))}
           </div>
         ) : files.length === 0 ? (
-          <div className="rounded-2xl border border-line px-6 py-14 text-center">
-            <p className="font-serif text-2xl">Nothing filed yet.</p>
-            <p className="mt-2 text-sm text-text-3">Your first upload will show up here as a record card, with how long Portaldot keeps it.</p>
-          </div>
+          <button
+            onClick={() => picker.current?.click()}
+            className={`flex w-full flex-col items-center rounded-[28px] px-6 py-20 text-center transition-colors duration-200 ${over ? "bg-accent-soft" : "bg-bg-2 hover:bg-fill"}`}
+          >
+            <CloudUpload className="size-14 text-accent" strokeWidth={1.4} />
+            <span className="headline mt-5 text-[28px]">Drop a file to store it on Portaldot.</span>
+            <span className="mt-2 max-w-md text-[15px] text-label-2">
+              Up to 64 MiB. Hashed on this device first, then written to Portaldot&apos;s TransactionStorage with one approval.
+            </span>
+          </button>
         ) : (
-          <motion.div layout className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {files.map((f, i) => (
-              <FileCard key={f.root} f={f} head={head} index={i} />
-            ))}
-          </motion.div>
+          <>
+            <motion.div layout className={`grid grid-cols-2 gap-2 rounded-2xl transition-colors duration-200 sm:grid-cols-4 lg:grid-cols-6 ${over ? "bg-accent-soft" : ""}`}>
+              {files.map((f) => (
+                <FileCard key={f.root} f={f} head={head} />
+              ))}
+            </motion.div>
+            <p className="mt-8 text-center text-[13px] text-label-3">
+              {REGISTRY ? "Owned files come from the PotDrive registry on Revive." : "Showing files this browser uploaded. The registry isn't deployed on this build yet."}{" "}
+              Drag a file anywhere here to upload.
+            </p>
+          </>
         )}
-      </section>
+      </div>
 
       {upload && (
         <UploadFlow
