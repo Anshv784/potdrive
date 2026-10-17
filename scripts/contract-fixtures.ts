@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+// @ts-nocheck -- dev script; dag-pb pins its own multiformats copy, so CID types do not line up
 // Writes contracts/test/Fixtures.sol from the real SDK, so the Solidity tests run against the
 // exact bytes PotDrive produces: UnixFS roots, a leaf, malformed variants and a wallet-format
 // sr25519 permit.   bun scripts/contract-fixtures.ts
