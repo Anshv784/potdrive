@@ -147,3 +147,4 @@ body {
 .prose-doc table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
 .prose-doc th, .prose-doc td { text-align: left; padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--line); color: var(--text-2); vertical-align: top; }
 .prose-doc th { color: var(--text); font-weight: 500; }
+.prose-doc td code { white-space: nowrap; }

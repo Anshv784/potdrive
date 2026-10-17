@@ -6,7 +6,16 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   // Override default ignores of eslint-config-next.
+  {
+    rules: {
+      // Our effects reset local state before fetching from the chain (a new CID, a new
+      // file, a reconnect). That is the intended pattern here, not a derived-state bug.
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
   globalIgnores([
+    ".scratch/**",
+    "contracts/**",
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",

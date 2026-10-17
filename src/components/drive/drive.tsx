@@ -31,6 +31,12 @@ export function Drive() {
   const [upload, setUpload] = useState<File | null>(null);
   const [over, setOver] = useState(false);
   const [stranded, setStranded] = useState(0);
+  const [tooBig, setTooBig] = useState<string | null>(null);
+  const choose = (f: File) => {
+    if (f.size > 64 * 1024 * 1024) return setTooBig(`${f.name} is ${bytes(f.size)}. The Drive takes up to 64 MiB per file.`);
+    setTooBig(null);
+    setUpload(f);
+  };
 
   useEffect(() => {
     if (simulate) return setAccount(DEMO_ACCOUNT);
@@ -131,7 +137,7 @@ export function Drive() {
         e.preventDefault();
         setOver(false);
         const f = e.dataTransfer.files[0];
-        if (f) setUpload(f);
+        if (f) choose(f);
       }}
     >
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -172,7 +178,7 @@ export function Drive() {
           className="sr-only"
           onChange={(e) => {
             const f = e.target.files?.[0];
-            if (f) setUpload(f);
+            if (f) choose(f);
             e.target.value = "";
           }}
         />
@@ -184,6 +190,8 @@ export function Drive() {
           Up to 64 MiB. Hashed in your browser first, then stored in Portaldot&apos;s TransactionStorage with one signature.
         </span>
       </label>
+
+      {tooBig && <p className="mt-3 text-sm text-warn">{tooBig}</p>}
 
       <section className="mt-10">
         <div className="mb-4 flex items-center justify-between">
