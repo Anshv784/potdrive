@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { GithubIcon, Wordmark } from "./logo";
 import { ChainPulse } from "./chain-pulse";
+import { ThemeToggle } from "./theme-toggle";
 
 const links = [
   { href: "/drive", label: "Drive" },
@@ -34,6 +35,9 @@ export function Nav({ wide = false }: { wide?: boolean }) {
           <span className="hidden lg:inline-flex">
             <ChainPulse />
           </span>
+          <span className="hidden sm:inline-flex">
+            <ThemeToggle />
+          </span>
           <Link href="/docs" className="hidden h-7 items-center rounded-full px-3 text-[12px] text-label ring-1 ring-sep transition-colors duration-200 hover:bg-fill sm:inline-flex">
             Docs
           </Link>
@@ -58,7 +62,9 @@ export function Nav({ wide = false }: { wide?: boolean }) {
             {l.label}
           </Link>
         ))}
-        <ChainPulse className="ml-auto" />
+        <span className="ml-auto">
+          <ThemeToggle />
+        </span>
       </nav>
     </header>
   );

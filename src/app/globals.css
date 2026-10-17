@@ -16,6 +16,7 @@
   --sep: rgb(0 0 0 / 0.1);
   --sep-2: rgb(0 0 0 / 0.16);
   --accent: #4f46e5;
+  --glow: rgba(79, 70, 229, 0.09);
   --accent-hover: #4338ca;
   --link: #4f46e5;
   --accent-soft: rgb(79 70 229 / 0.1);
@@ -32,8 +33,9 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Dark: follows the OS unless the user picked a theme (data-theme on <html>). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #000000;
     --bg-2: #101011;
     --surface: #1c1c1e;
@@ -46,6 +48,7 @@
     --sep: rgb(255 255 255 / 0.12);
     --sep-2: rgb(255 255 255 / 0.2);
     --accent: #6366f1;
+    --glow: rgba(129, 140, 248, 0.13);
     --accent-hover: #818cf8;
     --link: #a5b4fc;
     --accent-soft: rgb(129 140 248 / 0.16);
@@ -60,6 +63,36 @@
     --shadow-lg: 0 20px 60px rgb(0 0 0 / 0.6);
   }
 }
+
+:root[data-theme="dark"] {
+  --bg: #000000;
+  --bg-2: #101011;
+  --surface: #1c1c1e;
+  --surface-2: #161617;
+  --fill: rgb(120 120 128 / 0.24);
+  --fill-2: rgb(120 120 128 / 0.32);
+  --label: #f5f5f7;
+  --label-2: #a1a1a6;
+  --label-3: #86868b;
+  --sep: rgb(255 255 255 / 0.12);
+  --sep-2: rgb(255 255 255 / 0.2);
+  --accent: #6366f1;
+  --glow: rgba(129, 140, 248, 0.13);
+  --accent-hover: #818cf8;
+  --link: #a5b4fc;
+  --accent-soft: rgb(129 140 248 / 0.16);
+  --green: #30d158;
+  --green-soft: rgb(48 209 88 / 0.16);
+  --orange: #ff9f0a;
+  --orange-soft: rgb(255 159 10 / 0.16);
+  --red: #ff453a;
+  --red-soft: rgb(255 69 58 / 0.16);
+  --material: rgb(22 22 23 / 0.8);
+  --shadow: 0 2px 12px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 20px 60px rgb(0 0 0 / 0.6);
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 @theme inline {
   --color-bg: var(--bg);
@@ -185,9 +218,18 @@ body {
 .shiki-wrap pre { background: transparent !important; margin: 0; }
 .shiki-wrap span { color: var(--shiki-light); }
 @media (prefers-color-scheme: dark) {
-  .shiki-wrap span { color: var(--shiki-dark); }
+  :root:not([data-theme="light"]) .shiki-wrap span { color: var(--shiki-dark); }
 }
+:root[data-theme="dark"] .shiki-wrap span { color: var(--shiki-dark); }
 .prose-doc ol { list-style: decimal; padding-left: 1.25rem; margin: 0.85rem 0; }
 .prose-doc ol li { margin: 0.35rem 0; }
 .prose-doc hr { border-color: var(--sep); margin: 2.5rem 0; }
 .prose-doc .not-prose code:not([class*="bg-"]) { background: transparent; padding: 0; border-radius: 0; }
+
+/* Hero entrance: pure CSS so it plays before hydration. */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(18px); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+.rise { animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: var(--d, 0s); }
+@media (prefers-reduced-motion: reduce) { .rise { animation: none; } }

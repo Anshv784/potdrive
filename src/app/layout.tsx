@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
+import { THEME_BOOT } from "@/lib/theme-boot";
 
 // One typeface on every platform, so the product looks the same on Windows, Linux, Android and macOS.
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -29,7 +30,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${mono.variable}`}>
+    <html lang="en" className={`${inter.variable} ${mono.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+      </head>
       <body>{children}</body>
     </html>
   );
