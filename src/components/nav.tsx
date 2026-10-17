@@ -11,11 +11,11 @@ const links = [
   { href: "/docs", label: "Docs" },
 ];
 
-export function Nav() {
+export function Nav({ wide = false }: { wide?: boolean }) {
   const path = usePathname();
   return (
     <header className="material sticky top-0 z-40 border-b border-sep">
-      <div className="mx-auto flex h-12 max-w-[1024px] items-center gap-7 px-5">
+      <div className={`mx-auto flex h-12 items-center gap-7 px-5 ${wide ? "" : "max-w-[1024px]"}`}>
         <Link href="/" className="text-label" aria-label="PotDrive home">
           <Wordmark />
         </Link>

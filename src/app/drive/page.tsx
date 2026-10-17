@@ -8,8 +8,8 @@ export const metadata: Metadata = { title: "Drive" };
 export default function DrivePage() {
   return (
     <>
-      <Nav />
-      <main className="min-h-[calc(100dvh-3.5rem)]">
+      <Nav wide />
+      <main>
         <Suspense>
           <Drive />
         </Suspense>

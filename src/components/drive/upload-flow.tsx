@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowUpRight, Check, ChevronDown, Lock } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, Lock, X } from "lucide-react";
 import type { ApiPromise } from "@polkadot/api";
 import type { PreparedFile } from "@potdrive/sdk/prepare";
 import type { BlockState, Estimate, Stage, UploadEvent, UploadResult } from "@potdrive/sdk/upload";
@@ -40,6 +40,9 @@ export function UploadFlow({
   simulate,
   onClose,
   onDone,
+  minimized,
+  onMinimize,
+  onExpand,
 }: {
   api: ApiPromise | null;
   account: InjectedAccount;
@@ -50,6 +53,10 @@ export function UploadFlow({
   simulate?: boolean;
   onClose: () => void;
   onDone: (r: UploadResult, f: PreparedFile) => void;
+  // Google Drive style: once storing starts, the sheet collapses into a corner panel.
+  minimized?: boolean;
+  onMinimize?: () => void;
+  onExpand?: () => void;
 }) {
   const displayName = folder?.name ?? file.name;
   const displaySize = folder ? folder.files.reduce((n, f) => n + f.size, 0) : file.size;
@@ -159,6 +166,7 @@ export function UploadFlow({
     if (!prepared) return;
     setPhase("running");
     setLog([]);
+    onMinimize?.();
     t0.current = performance.now();
     try {
       let r: UploadResult;
@@ -211,6 +219,70 @@ export function UploadFlow({
   const progress = blocks.length ? done / blocks.length : 0;
   const [showLog, setShowLog] = useState(false);
 
+  if (minimized) {
+    const status =
+      phase === "done"
+        ? result?.deduplicated
+          ? "Already on Portaldot"
+          : "Stored on Portaldot"
+        : phase === "error"
+          ? "Upload stopped"
+          : stage === "authorize"
+            ? "Waiting for your wallet…"
+            : stage === "store"
+              ? `Storing ${done} of ${blocks.length} blocks`
+              : stage === "verify"
+                ? "Verifying from the chain…"
+                : stage === "sweep"
+                  ? "Returning unspent tPOT…"
+                  : "Preparing…";
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 400, damping: 34 }}
+        className="fixed bottom-5 right-5 z-50 w-[min(360px,calc(100vw-2.5rem))] overflow-hidden rounded-2xl bg-surface shadow-float ring-1 ring-sep"
+        role="status"
+      >
+        <div className="flex items-center justify-between bg-bg-2 px-4 py-2.5">
+          <span className="text-[13px] font-semibold">{phase === "done" ? "1 upload complete" : phase === "error" ? "1 upload stopped" : "Uploading 1 item"}</span>
+          <div className="flex items-center gap-1">
+            <button onClick={onExpand} className="rounded-full px-2 py-0.5 text-[13px] text-link hover:bg-accent-soft">
+              Details
+            </button>
+            {phase !== "running" && (
+              <button onClick={onClose} aria-label="Dismiss" className="rounded-full p-1 text-label-2 hover:bg-fill">
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-3 px-4 py-3">
+          <DocIcon type={folder ? "DIR" : isPrivate ? "LOCK" : mimeLabel(file.type, file.name)} size={26} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[14px] font-medium">{displayName}</div>
+            <div className={`text-[12px] ${phase === "error" ? "text-red" : "text-label-2"}`}>{status}</div>
+          </div>
+          {phase === "done" ? (
+            <Check className="size-6 rounded-full bg-green p-1 text-white" strokeWidth={3} />
+          ) : phase === "error" ? (
+            <X className="size-6 rounded-full bg-red p-1 text-white" strokeWidth={3} />
+          ) : (
+            <Ring value={progress} size={26} stroke={3} />
+          )}
+        </div>
+        {phase === "done" && link && (
+          <div className="flex border-t border-sep px-2 py-1">
+            <CopyButton text={link} label="Copy link" className="text-[13px]" />
+            <a href={link} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 rounded-full px-2 py-1 text-[13px] text-link hover:bg-accent-soft">
+              Open <ArrowUpRight className="size-3.5" />
+            </a>
+          </div>
+        )}
+      </motion.div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6" role="dialog" aria-modal aria-label="Upload">
       <motion.div
@@ -235,7 +307,11 @@ export function UploadFlow({
                 Done
               </button>
             )}
-            {phase === "running" && <span className="text-[13px] text-label-2 tabular">{(elapsed / 1000).toFixed(1)}s</span>}
+            {phase === "running" && (
+              <button onClick={onMinimize} className="text-[17px] text-link">
+                Hide
+              </button>
+            )}
           </div>
         </div>
 
