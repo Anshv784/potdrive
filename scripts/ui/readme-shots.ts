@@ -36,7 +36,7 @@ const v2 = noise(900_000, 900_000);
 v2.set(noise(4000, 7), 400_000);
 await writeFile(join(tmp, "Brand-Guide-v2.pdf"), v2);
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
 const errors: string[] = [];
 
 async function page(width: number, height: number, scheme: "light" | "dark" = "light"): Promise<Page> {
@@ -85,6 +85,20 @@ async function upload(p: Page, file: string, parentVia?: string) {
   await p.goto(`${BASE}/docs/content-addressing`, { waitUntil: "networkidle" });
   await p.waitForTimeout(1500);
   await shot(p, "docs.jpg");
+  await p.close();
+}
+
+// scroll journey (WebGL), one frame per theme
+for (const [scheme, at, name] of [["light", 0.22, "journey.jpg"], ["dark", 0.56, "journey-dark.jpg"]] as const) {
+  const p = await page(1440, 900, scheme);
+  await p.goto(BASE, { waitUntil: "networkidle" });
+  const { top, h } = await p.evaluate(() => {
+    const el = document.querySelector<HTMLElement>('section[aria-label^="How a file"]')!;
+    return { top: el.getBoundingClientRect().top + scrollY, h: el.offsetHeight };
+  });
+  await p.evaluate((y) => scrollTo(0, y), top + at * (h - 900));
+  await p.waitForTimeout(3000);
+  await shot(p, name);
   await p.close();
 }
 

@@ -30,6 +30,12 @@
   <img src="docs/assets/home.jpg" alt="PotDrive landing page" width="100%">
 </p>
 
+<p align="center">
+  <img src="docs/assets/journey.jpg" alt="Scroll journey: the file splits at content-defined cuts" width="49%">
+  <img src="docs/assets/journey-dark.jpg" alt="Scroll journey, dark mode: new chunks stored in blocks, known ones skipped" width="49%">
+  <br><sub>The landing page follows one file from your disk to the chain and back, in 3D, as you scroll. Light and dark themes.</sub>
+</p>
+
 Portaldot V3 runs `TransactionStorage`, the pallet behind Polkadot's Bulletin chain. Any account can store data in it, block producers must keep proving they still hold that data, and the node serves it by content ID. When we checked chain state on 17 October 2026, it held **zero entries**. There was no SDK, no gateway and no app for it, and teams building on Portaldot were sending their files to outside IPFS pinning services.
 
 PotDrive is the missing layer. Files are chunked by content (FastCDC), addressed with IPFS CIDs built on the exact hash Portaldot indexes, and stored with **one wallet signature**. Blocks the chain already holds are never paid for twice. Every reader (the Drive, the gateway, the SDK, the CLI and an MCP server for AI agents) re-hashes every block before trusting it.
