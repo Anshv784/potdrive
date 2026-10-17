@@ -36,7 +36,7 @@ const dirSize = dirNode.Links.reduce((s, l) => s + Number(l.Tsize ?? 0), 0);
 // Malformed roots the contract must refuse.
 const leaves = file.leaves;
 const encodeFile = (blockSizes: bigint[], links: { Hash: CID; Tsize: number }[]) =>
-  dagPB.encode({ Data: new UnixFS({ type: "file", blockSizes }).marshal(), Links: links.map((l) => ({ ...l, Name: "" })) });
+  dagPB.encode({ Data: new UnixFS({ type: "file", blockSizes }).marshal(), Links: links.map((l) => ({ ...l, Name: "" })) as never });
 const lyingSizes = encodeFile(
   [1000n, 1000n, 900n], // the last leaf is 500 bytes
   leaves.map((l) => ({ Hash: l.cid, Tsize: l.bytes.length })),
