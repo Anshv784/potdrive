@@ -6,7 +6,17 @@ import { animate, motion, useInView, useMotionValue, useReducedMotion, useSpring
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 // Fades and lifts its children in the first time they scroll into view.
-export function Reveal({ children, delay = 0, y = 24, className }: { children: ReactNode; delay?: number; y?: number; className?: string }) {
+export function Reveal({
+  children,
+  delay = 0,
+  y = 24,
+  className,
+}: {
+  children: ReactNode;
+  delay?: number;
+  y?: number;
+  className?: string;
+}) {
   const reduce = useReducedMotion();
   return (
     <motion.div
@@ -54,7 +64,10 @@ export function TiltCard({ children, className, max = 6 }: { children: ReactNode
   const py = useMotionValue(0.5);
   const rx = useSpring(useTransform(py, [0, 1], [max, -max]), { stiffness: 220, damping: 22 });
   const ry = useSpring(useTransform(px, [0, 1], [-max, max]), { stiffness: 220, damping: 22 });
-  const glow = useTransform([px, py] as const, ([x, y]: number[]) => `radial-gradient(420px circle at ${x * 100}% ${y * 100}%, var(--glow), transparent 60%)`);
+  const glow = useTransform(
+    [px, py] as const,
+    ([x, y]: number[]) => `radial-gradient(420px circle at ${x * 100}% ${y * 100}%, var(--glow), transparent 60%)`,
+  );
   const [hover, setHover] = useState(false);
 
   return (

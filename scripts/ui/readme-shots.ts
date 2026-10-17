@@ -89,7 +89,7 @@ async function upload(p: Page, file: string, parentVia?: string) {
 }
 
 // scroll journey (WebGL), one frame per theme
-for (const [scheme, at, name] of [["light", 0.22, "journey.jpg"], ["dark", 0.56, "journey-dark.jpg"]] as const) {
+for (const [scheme, at, name] of [["light", 0.22, "journey.jpg"], ["dark", 0.995, "journey-dark.jpg"]] as const) {
   const p = await page(1440, 900, scheme);
   await p.goto(BASE, { waitUntil: "networkidle" });
   const { top, h } = await p.evaluate(() => {

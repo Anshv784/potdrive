@@ -233,3 +233,12 @@ body {
 }
 .rise { animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: var(--d, 0s); }
 @media (prefers-reduced-motion: reduce) { .rise { animation: none; } }
+
+/* Hero grid cells blinking on like blocks being written. */
+@keyframes hero-cell {
+  0%, 100% { opacity: 0; }
+  8% { opacity: 0.16; }
+  30% { opacity: 0; }
+}
+.hero-cell { opacity: 0; animation: hero-cell 7s ease-in-out infinite both; }
+@media (prefers-reduced-motion: reduce) { .hero-cell { animation: none; } }

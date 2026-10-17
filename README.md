@@ -32,7 +32,7 @@
 
 <p align="center">
   <img src="docs/assets/journey.jpg" alt="Scroll journey: the file splits at content-defined cuts" width="49%">
-  <img src="docs/assets/journey-dark.jpg" alt="Scroll journey, dark mode: new chunks stored in blocks, known ones skipped" width="49%">
+  <img src="docs/assets/journey-dark.jpg" alt="Scroll journey, dark mode: the reader re-hashes every chunk and the file comes back verified" width="49%">
   <br><sub>The landing page follows one file from your disk to the chain and back, in 3D, as you scroll. Light and dark themes.</sub>
 </p>
 

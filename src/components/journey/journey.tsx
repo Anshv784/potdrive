@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, useMotionValueEvent, useScroll, useSpring } from "motion/react";
+import { AnimatePresence, motion, useMotionValueEvent, useScroll, useSpring, useTransform, type MotionValue } from "motion/react";
 import { useResolvedTheme } from "@/lib/theme";
 import type { Palette } from "./scene";
 
@@ -47,10 +47,49 @@ const STAGES = [
   },
 ];
 const CUTS = [0.14, 0.3, 0.46, 0.66, 0.82];
+const STARTS = [0, ...CUTS];
+const ENDS = [...CUTS, 1];
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+// One segment of the rail: fills continuously with scroll, and jumps to its step on click.
+function Step({
+  i,
+  progress,
+  stage,
+  onGo,
+}: {
+  i: number;
+  progress: MotionValue<number>;
+  stage: number;
+  onGo: (i: number) => void;
+}) {
+  const width = useTransform(progress, [STARTS[i], ENDS[i]], ["0%", "100%"]);
+  const on = i === stage;
+  return (
+    <li className="flex-1">
+      <button
+        onClick={() => onGo(i)}
+        aria-label={`Step ${i + 1}: ${STAGES[i].title}`}
+        aria-current={on ? "step" : undefined}
+        title={STAGES[i].title}
+        className="group block w-full py-2"
+      >
+        <span
+          className={`block overflow-hidden rounded-full bg-fill transition-[height] duration-300 ${on ? "h-1.5" : "h-1 group-hover:h-1.5"}`}
+        >
+          <motion.span
+            className={`block h-full rounded-full bg-accent ${on ? "shadow-[0_0_12px_var(--accent)]" : ""}`}
+            style={{ width }}
+          />
+        </span>
+      </button>
+    </li>
+  );
+}
 
 const PALETTES: Record<"light" | "dark", Palette> = {
   light: { paper: "#ffffff", edge: "#c7c7d1", accent: "#4f46e5", green: "#34c759", glass: "#c7d2fe", bg: "#ffffff" },
-  dark: { paper: "#2c2c30", edge: "#5b5b66", accent: "#818cf8", green: "#30d158", glass: "#3730a3", bg: "#000000" },
+  dark: { paper: "#24242a", edge: "#4a4a56", accent: "#818cf8", green: "#30d158", glass: "#3730a3", bg: "#000000" },
 };
 
 export function Journey() {
@@ -73,6 +112,14 @@ export function Journey() {
     return () => io.disconnect();
   }, []);
 
+  const go = (i: number) => {
+    const el = ref.current;
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    const run = el.offsetHeight - window.innerHeight;
+    window.scrollTo({ top: top + (STARTS[i] + (ENDS[i] - STARTS[i]) * 0.45) * run, behavior: reduced ? "auto" : "smooth" });
+  };
+
   const s = STAGES[stage];
   return (
     <section ref={ref} className="relative h-[560vh] bg-bg-2" aria-label="How a file travels through PotDrive">
@@ -85,23 +132,62 @@ export function Journey() {
               key={stage}
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              exit={{ opacity: 0, y: -10, transition: { duration: 0.2 } }}
+              transition={{ duration: 0.35, ease: EASE }}
             >
               <div className="mt-4 font-mono text-[13px] text-label-3">{s.n} / 06</div>
-              <h2 className="headline mt-2 text-[30px] sm:text-[40px] lg:text-[46px]">{s.title}</h2>
-              <p className="mt-4 max-w-md text-[17px] text-label-2">{s.body}</p>
-              <code className="mt-5 inline-block rounded-full bg-surface px-3 py-1.5 font-mono text-[12px] text-accent ring-1 ring-sep">{s.tech}</code>
+              <h2 className="headline mt-2 text-[30px] sm:text-[40px] lg:text-[46px]">
+                {s.title.split(" ").map((w, k) => (
+                  <motion.span
+                    key={k}
+                    className="inline-block"
+                    initial={{ opacity: 0, y: 12, filter: "blur(6px)" }}
+                    animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                    transition={{ duration: 0.45, delay: k * 0.045, ease: EASE }}
+                  >
+                    {w}&nbsp;
+                  </motion.span>
+                ))}
+              </h2>
+              <motion.p
+                className="mt-4 max-w-md text-[17px] text-label-2"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.4, delay: 0.15 }}
+              >
+                {s.body}
+              </motion.p>
+              <motion.code
+                className="mt-5 inline-block rounded-full bg-surface px-3 py-1.5 font-mono text-[12px] text-accent ring-1 ring-sep"
+                initial={{ opacity: 0, scale: 0.94 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.35, delay: 0.25, ease: EASE }}
+              >
+                {s.tech}
+              </motion.code>
             </motion.div>
           </AnimatePresence>
           {/* progress rail */}
-          <ol className="mt-8 flex gap-2" aria-label="Progress">
+          <ol className="mt-7 flex gap-2" aria-label="Steps">
             {STAGES.map((st, i) => (
-              <li key={st.n} className="h-1 flex-1 overflow-hidden rounded-full bg-fill">
-                <motion.div className="h-full rounded-full bg-accent" initial={false} animate={{ width: i < stage ? "100%" : i === stage ? "55%" : "0%" }} transition={{ duration: 0.4 }} />
-              </li>
+              <Step key={st.n} i={i} progress={scrollYProgress} stage={stage} onGo={go} />
             ))}
           </ol>
+          <AnimatePresence>
+            {stage === 0 && (
+              <motion.div
+                className="mt-4 flex items-center gap-2 text-[13px] text-label-3"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <motion.span animate={{ y: [0, 4, 0] }} transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}>
+                  ↓
+                </motion.span>
+                Scroll to follow it
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* scene */}

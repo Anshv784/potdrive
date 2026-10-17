@@ -2,7 +2,7 @@
 
 import { useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Edges, RoundedBox } from "@react-three/drei";
+import { Edges, RoundedBox, type EdgesRef } from "@react-three/drei";
 import type { MotionValue } from "motion/react";
 import * as THREE from "three";
 
@@ -41,33 +41,66 @@ function pageTexture(dark: boolean): THREE.CanvasTexture {
   c.width = 840;
   c.height = 1040;
   const g = c.getContext("2d")!;
-  g.fillStyle = dark ? "#2c2c30" : "#ffffff";
+  const bg = g.createLinearGradient(0, 0, 0, c.height);
+  bg.addColorStop(0, dark ? "#2a2a31" : "#ffffff");
+  bg.addColorStop(1, dark ? "#202026" : "#f6f6fa");
+  g.fillStyle = bg;
   g.fillRect(0, 0, c.width, c.height);
-  const ink = dark ? "#5b5b66" : "#d4d4dc";
-  const strong = dark ? "#8e8e99" : "#9b9bab";
+  const ink = dark ? "#41414c" : "#dcdce4";
+  const strong = dark ? "#9a9aa8" : "#8e8ea0";
   g.fillStyle = strong;
-  g.fillRect(70, 80, 420, 34);
+  g.beginPath();
+  g.roundRect(70, 80, 420, 34, 8);
+  g.fill();
   g.fillStyle = ink;
-  g.fillRect(70, 132, 280, 18);
-  g.fillStyle = dark ? "#3730a3" : "#e0e7ff";
+  g.beginPath();
+  g.roundRect(70, 132, 280, 18, 6);
+  g.fill();
+  // photo: soft sky, sun, two hills
+  g.save();
+  g.beginPath();
+  g.roundRect(70, 190, 700, 300, 18);
+  g.clip();
+  const sky = g.createLinearGradient(0, 190, 0, 490);
+  sky.addColorStop(0, dark ? "#2e2b5f" : "#eef0ff");
+  sky.addColorStop(1, dark ? "#1f1d42" : "#dfe3ff");
+  g.fillStyle = sky;
   g.fillRect(70, 190, 700, 300);
+  g.fillStyle = dark ? "#f5c451" : "#fbbf24";
+  g.globalAlpha = dark ? 0.85 : 0.9;
+  g.beginPath();
+  g.arc(640, 260, 34, 0, Math.PI * 2);
+  g.fill();
+  g.globalAlpha = 1;
   g.fillStyle = dark ? "#4f46e5" : "#a5b4fc";
   g.beginPath();
-  g.moveTo(110, 460);
-  g.lineTo(300, 300);
-  g.lineTo(420, 400);
-  g.lineTo(560, 260);
-  g.lineTo(730, 460);
+  g.moveTo(40, 500);
+  g.lineTo(290, 320);
+  g.lineTo(430, 420);
+  g.lineTo(560, 300);
+  g.lineTo(800, 500);
   g.fill();
-  g.fillStyle = ink;
-  for (let i = 0; i < 12; i++) g.fillRect(70, 540 + i * 36, i % 4 === 3 ? 430 : 700, 14);
-  g.fillStyle = "#ff3b30";
+  g.fillStyle = dark ? "#6366f1" : "#818cf8";
   g.beginPath();
-  g.roundRect(650, 70, 120, 56, 12);
+  g.moveTo(240, 500);
+  g.lineTo(470, 380);
+  g.lineTo(800, 500);
+  g.fill();
+  g.restore();
+  g.fillStyle = ink;
+  for (let i = 0; i < 12; i++) {
+    g.beginPath();
+    g.roundRect(70, 540 + i * 36, i % 4 === 3 ? 430 : 700, 14, 7);
+    g.fill();
+  }
+  g.fillStyle = "#ef4444";
+  g.beginPath();
+  g.roundRect(650, 70, 120, 56, 14);
   g.fill();
   g.fillStyle = "#ffffff";
-  g.font = "bold 34px Inter, sans-serif";
-  g.fillText("PDF", 680, 110);
+  g.font = "600 32px Inter, system-ui, sans-serif";
+  g.textAlign = "center";
+  g.fillText("PDF", 710, 110);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
@@ -140,15 +173,29 @@ function chunkTarget(i: number, p: number) {
   return { x, y, z, sx, sy, sz, ry, opacity, dedup: dedup * (1 - s5) };
 }
 
-function Chunk({ i, progress, palette, page }: { i: number; progress: MotionValue<number>; palette: Palette; page: THREE.Texture }) {
+function Chunk({
+  i,
+  progress,
+  palette,
+  page,
+}: {
+  i: number;
+  progress: MotionValue<number>;
+  palette: Palette;
+  page: THREE.Texture;
+}) {
   const ref = useRef<THREE.Group>(null);
   const mat = useRef<THREE.MeshStandardMaterial>(null);
   const face = useRef<THREE.MeshStandardMaterial>(null);
+  const edges = useRef<EdgesRef>(null);
   const slice = useMemo(() => {
     const t = page.clone();
     t.needsUpdate = true;
     t.repeat.set(WIDTHS[i], 1);
-    t.offset.set(WIDTHS.slice(0, i).reduce((a, b) => a + b, 0), 0);
+    t.offset.set(
+      WIDTHS.slice(0, i).reduce((a, b) => a + b, 0),
+      0,
+    );
     return t;
   }, [page, i]);
   const paper = useMemo(() => new THREE.Color(palette.paper), [palette.paper]);
@@ -169,15 +216,35 @@ function Chunk({ i, progress, palette, page }: { i: number; progress: MotionValu
     if (mat.current) {
       // 2: a hashing pulse sweeps the row
       const sweep = seg(p, 0.3, 0.46);
-      const pulse = Math.max(0, 1 - Math.abs(sweep * (N + 2) - 1 - i) * 0.9);
-      const c = paper.clone().lerp(green, t.dedup).lerp(accent, pulse * 0.55);
+      const pulse = sweep > 0 && sweep < 1 ? Math.max(0, 1 - Math.abs(sweep * (N + 2) - 1 - i) * 0.9) : 0;
+      const c = paper
+        .clone()
+        .lerp(green, t.dedup)
+        .lerp(accent, pulse * 0.55);
       mat.current.color.copy(c);
       mat.current.emissive.copy(accent).multiplyScalar(pulse * 0.35);
       mat.current.opacity += (t.opacity - mat.current.opacity) * k;
+      // seams only show while the file is in pieces
+      const apart = ease(seg(p, 0.1, 0.18)) * (1 - ease(seg(p, 0.86, 0.93)));
+      const em = edges.current?.material;
+      if (em) {
+        em.transparent = true;
+        em.opacity = (0.08 + apart * 0.92) * mat.current.opacity;
+      }
       if (face.current) {
         face.current.opacity = mat.current.opacity;
-        face.current.color.set("#ffffff").lerp(green, t.dedup * 0.8).lerp(accent, pulse * 0.4);
-        face.current.emissive.copy(accent).multiplyScalar(pulse * 0.25);
+        // 6: the reader re-hashes each chunk; a green check sweeps across before the badge lands
+        const check = seg(p, 0.84, 0.95);
+        const ok = check > 0 && check < 1 ? Math.max(0, 1 - Math.abs(check * (N + 2) - 1 - i) * 0.8) : 0;
+        face.current.color
+          .set("#ffffff")
+          .lerp(green, t.dedup * 0.8)
+          .lerp(accent, pulse * 0.4)
+          .lerp(green, ok * 0.22);
+        face.current.emissive
+          .copy(accent)
+          .multiplyScalar(pulse * 0.25)
+          .add(green.clone().multiplyScalar(ok * 0.12));
       }
     }
   });
@@ -186,7 +253,7 @@ function Chunk({ i, progress, palette, page }: { i: number; progress: MotionValu
       <mesh castShadow>
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial ref={mat} color={palette.paper} roughness={0.55} metalness={0.05} transparent />
-        <Edges color={palette.edge} threshold={15} />
+        <Edges ref={edges} color={palette.edge} threshold={15} />
       </mesh>
       {/* front face: this chunk's slice of the page */}
       <mesh position={[0, 0, 0.501]}>
@@ -273,7 +340,7 @@ function Validators({ progress, palette }: { progress: MotionValue<number>; pale
   );
 }
 
-// Two strokes of a check mark: A(-0.24, 0.02) → B(-0.07, -0.15) → C(0.25, 0.19).
+// Two strokes of a check mark: A(-0.2, 0.02) → B(-0.06, -0.12) → C(0.21, 0.16).
 const CHECK: [number, number, number, number][] = (() => {
   const seg2 = (ax: number, ay: number, bx: number, by: number): [number, number, number, number] => [
     (ax + bx) / 2,
@@ -281,32 +348,58 @@ const CHECK: [number, number, number, number][] = (() => {
     Math.hypot(bx - ax, by - ay) + 0.08,
     Math.atan2(by - ay, bx - ax),
   ];
-  return [seg2(-0.24, 0.02, -0.07, -0.15), seg2(-0.07, -0.15, 0.25, 0.19)];
+  return [seg2(-0.2, 0.02, -0.06, -0.12), seg2(-0.06, -0.12, 0.21, 0.16)];
 })();
 
 function Verified({ progress, palette }: { progress: MotionValue<number>; palette: Palette }) {
   const ref = useRef<THREE.Group>(null);
+  const halo = useRef<THREE.Mesh>(null);
+  const strokes = useRef<(THREE.Mesh | null)[]>([]);
   useFrame((state) => {
     const p = progress.get();
-    const s = ease(seg(p, 0.93, 1));
+    const s = ease(seg(p, 0.93, 0.98));
     const g = ref.current!;
     g.visible = s > 0.01;
-    g.scale.setScalar(s * (1 + Math.sin(state.clock.elapsedTime * 3) * 0.03));
+    // a little overshoot, then rest
+    const pop = s < 1 ? s * (1 + Math.sin(s * Math.PI) * 0.18) : 1;
+    g.scale.setScalar(pop);
+    // the check draws itself: short stroke, then long stroke
+    const draw = seg(p, 0.95, 1);
+    CHECK.forEach(([, , len], n) => {
+      const m = strokes.current[n];
+      if (!m) return;
+      const t = clamp(n === 0 ? draw * 2.5 : (draw - 0.4) * 1.7);
+      m.scale.x = Math.max(0.001, t);
+      m.position.x = CHECK[n][0] - (Math.cos(CHECK[n][3]) * len * (1 - t)) / 2;
+      m.position.y = CHECK[n][1] - (Math.sin(CHECK[n][3]) * len * (1 - t)) / 2;
+    });
+    // a soft ring keeps breathing out from the badge
+    if (halo.current) {
+      const w = (state.clock.elapsedTime * 0.6) % 1;
+      halo.current.scale.setScalar(1 + w * 0.7);
+      (halo.current.material as THREE.MeshBasicMaterial).opacity = (1 - w) * 0.28 * s;
+    }
   });
   return (
-    <group ref={ref} position={[2.55, 3.15, 0.8]}>
+    <group ref={ref} position={[2.35, 2.55, 0.9]}>
+      <mesh ref={halo}>
+        <ringGeometry args={[0.55, 0.58, 64]} />
+        <meshBasicMaterial color={palette.green} transparent opacity={0.3} />
+      </mesh>
       <mesh>
-        <circleGeometry args={[0.55, 48]} />
+        <circleGeometry args={[0.48, 64]} />
         <meshBasicMaterial color={palette.green} />
       </mesh>
-      <mesh position={[0, 0, 0.01]}>
-        <torusGeometry args={[0.55, 0.05, 12, 64]} />
-        <meshBasicMaterial color={palette.paper} />
-      </mesh>
-      {/* check mark */}
       {CHECK.map(([cx, cy, len, ang], n) => (
-        <mesh key={n} position={[cx, cy, 0.02]} rotation={[0, 0, ang]}>
-          <boxGeometry args={[len, 0.09, 0.01]} />
+        <mesh
+          key={n}
+          ref={(m) => {
+            strokes.current[n] = m;
+          }}
+          position={[cx, cy, 0.02]}
+          rotation={[0, 0, ang]}
+        >
+          <boxGeometry args={[len, 0.085, 0.01]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
       ))}
@@ -330,7 +423,15 @@ function Rig({ children, progress }: { children: React.ReactNode; progress: Moti
   return <group ref={ref}>{children}</group>;
 }
 
-export default function JourneyScene({ progress, palette, active }: { progress: MotionValue<number>; palette: Palette; active: boolean }) {
+export default function JourneyScene({
+  progress,
+  palette,
+  active,
+}: {
+  progress: MotionValue<number>;
+  palette: Palette;
+  active: boolean;
+}) {
   const page = useMemo(() => pageTexture(palette.bg === "#000000"), [palette.bg]);
   return (
     <Canvas
