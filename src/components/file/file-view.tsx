@@ -13,6 +13,7 @@ import { useHead } from "../chain-pulse";
 import { CopyButton } from "../code";
 import { expiryTone } from "../drive/file-card";
 import { Button, DocIcon, Group, Ring, Row, Spinner } from "../ui";
+import { ChainVerified } from "../chain-verified";
 import { FundSheet } from "../drive/actions";
 import { rememberedAccount, type InjectedAccount } from "@/lib/wallet";
 import { useApi } from "@/lib/use-api";
@@ -264,6 +265,8 @@ export function FileView({ cid, nameHint }: { cid: string; nameHint?: string }) 
               Every block came straight from a Portaldot node and was re-hashed with blake2b-256 against its ID.
             </p>
           </div>
+
+          <ChainVerified cid={cid} />
 
           <Group gray title="Retention">
             <div className="flex items-center gap-4 px-4 py-3.5">

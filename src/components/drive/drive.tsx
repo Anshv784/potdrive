@@ -41,6 +41,7 @@ import { SIMULATE } from "@/lib/simulate";
 import { bytes, duration, mimeLabel, num, untilBlock } from "@/lib/format";
 import { useHead } from "../chain-pulse";
 import { CopyButton } from "../code";
+import { ChainVerified } from "../chain-verified";
 import { Button, DocIcon, Ring } from "../ui";
 import { AccountCard, ConnectCard } from "./connect";
 import { expiryTone, type CardFile } from "./file-card";
@@ -781,6 +782,7 @@ export function Drive() {
               f={sel}
               head={head}
               versions={localVersions(sel.root)}
+              chainCheck={!simulate}
               onClose={() => setSelected(null)}
               onNewVersion={() => {
                 setVersionOf({ root: sel.root, name: sel.name || "file" });
@@ -1061,6 +1063,7 @@ function Details({
   onShare,
   onFund,
   onSelect,
+  chainCheck = true,
 }: {
   f: DriveFile;
   head: number | null;
@@ -1071,6 +1074,8 @@ function Details({
   onShare: () => void;
   onFund: () => void;
   onSelect: (root: string) => void;
+  /** Ask Portaldot's runtime to verify the file (off in simulation, where nothing is on chain). */
+  chainCheck?: boolean;
 }) {
   const { frac, tone } = expiryTone(f.expiresAt, head);
   const image = f.mime.startsWith("image/") && !f.mime.includes("svg") && !f.isPrivate;
@@ -1116,6 +1121,12 @@ function Details({
           <div className="text-[12px] text-label-2 tabular">{f.expiresAt ? `until block ${num(f.expiresAt)}` : `${num(NETWORK.retentionBlocks)} blocks per payment`}</div>
         </div>
       </div>
+
+      {chainCheck && (
+        <div className="mt-3">
+          <ChainVerified cid={f.root} compact />
+        </div>
+      )}
 
       <dl className="mt-5 space-y-3 text-[13px]">
         {[

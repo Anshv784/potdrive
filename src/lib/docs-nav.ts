@@ -48,7 +48,7 @@ export const DOCS: DocGroup[] = [
       { href: "/docs/react", title: "React", summary: "usePotFile, <PotImage> and <PotVideo>: verified files in any React app.", keywords: "react hook component npm package" },
       { href: "/docs/mcp", title: "MCP server", summary: "Let AI agents read, store and deploy on Portaldot.", keywords: "mcp ai agent claude cursor tools" },
       { href: "/docs/gateway", title: "Gateway API", summary: "HTTP routes, Range requests, headers and status codes.", keywords: "http ipfs range headers 206" },
-      { href: "/docs/registry", title: "Registry contract", summary: "PotDriveRegistry on Revive: functions, events and storage layout.", keywords: "solidity revive evm contract deposit events" },
+      { href: "/docs/registry", title: "Registry contracts", summary: "Solidity on Revive that hashes with Portaldot's blake2b, decodes UnixFS and checks wallet signatures.", keywords: "solidity revive evm contract deposit events precompile blake2b sr25519 permit verify eth_call unixfs" },
       { href: "/docs/security", title: "Security model", summary: "Threats, what PotDrive does about each, and what it doesn't.", keywords: "threat xss sandbox keys" },
       { href: "/docs/limits", title: "Costs and limits", summary: "Measured fees, sizes, retention and known constraints.", keywords: "fee cost price limit faq" },
     ],

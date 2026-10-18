@@ -18,6 +18,12 @@ interface Slip {
   kind: "chunk" | "root";
 }
 
+type ChainState =
+  | { state: "idle" }
+  | { state: "running" }
+  | { state: "done"; matches: boolean; kind: string; size: number; links: number; block: number; ms: number }
+  | { state: "error"; message: string };
+
 interface Doc {
   name: string;
   mime: string;
@@ -25,6 +31,8 @@ interface Doc {
   slips: Slip[];
   root: string;
   file?: File;
+  rootBlock: Uint8Array;
+  rootCid: ReturnType<typeof buildFileDag>["root"];
 }
 
 const MAX_SLIPS = 6;
@@ -69,7 +77,7 @@ function describe(data: Uint8Array, name: string, mime: string, file?: File): Do
   const dag = buildFileDag(data, CHUNK_SIZE);
   const slips: Slip[] = dag.leaves.map((l, i) => ({ i, size: l.bytes.length, cid: l.cid.toString(), kind: "chunk" }));
   if (dag.blocks.length > 1) slips.push({ i: slips.length, size: dag.blocks.at(-1)!.bytes.length, cid: dag.root.toString(), kind: "root" });
-  return { name, mime, size: data.length, slips, root: dag.root.toString(), file };
+  return { name, mime, size: data.length, slips, root: dag.root.toString(), file, rootBlock: dag.blocks.at(-1)!.bytes, rootCid: dag.root };
 }
 
 export function ArchiveDemo() {
@@ -78,11 +86,13 @@ export function ArchiveDemo() {
   const [revealed, setRevealed] = useState(0);
   const [over, setOver] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [chain, setChain] = useState<ChainState>({ state: "idle" });
   const input = useRef<HTMLInputElement>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const play = useCallback((d: Doc) => {
     setDoc(d);
+    setChain({ state: "idle" });
     setRevealed(0);
     if (timer.current) clearInterval(timer.current);
     const shown = Math.min(d.slips.length, MAX_SLIPS);
@@ -107,6 +117,25 @@ export function ArchiveDemo() {
   const shown = doc ? doc.slips.slice(0, MAX_SLIPS) : [];
   const hidden = doc ? doc.slips.length - shown.length : 0;
   const complete = !!doc && revealed > shown.length;
+
+  // Once the browser has addressed the file, ask Portaldot's runtime to do it too: the root block
+  // goes straight from this browser to the chain's EVM RPC (eth_call, nothing deployed or paid).
+  const verify = useCallback(async (d: Doc) => {
+    setChain({ state: "running" });
+    try {
+      const { checkBlockOnChain } = await import("@potdrive/sdk/onchain");
+      const r = await checkBlockOnChain(d.rootCid, d.rootBlock);
+      setChain({ state: "done", matches: r.matches, kind: r.kind, size: r.size, links: r.links, block: r.block, ms: r.ms });
+    } catch (e) {
+      setChain({ state: "error", message: (e as Error).message });
+    }
+  }, []);
+  const checkedRoot = useRef<string | null>(null);
+  useEffect(() => {
+    if (!complete || !doc || checkedRoot.current === doc.root) return;
+    checkedRoot.current = doc.root;
+    verify(doc);
+  }, [complete, doc, verify]);
 
   return (
     <div
@@ -278,6 +307,56 @@ export function ArchiveDemo() {
               {complete ? <Scramble text={doc!.root} on /> : <span className="text-label-3">Waiting for every block…</span>}
             </div>
           </div>
+
+          {/* the chain's own answer */}
+          <AnimatePresence>
+            {complete && chain.state !== "idle" && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                transition={{ duration: 0.4, ease: EASE }}
+                className="overflow-hidden"
+              >
+                <div
+                  className={`mt-2 flex items-start gap-2.5 rounded-xl px-3.5 py-3 ring-1 transition-colors duration-500 ${
+                    chain.state === "done" && chain.matches
+                      ? "bg-green-soft ring-green/25"
+                      : chain.state === "error" || (chain.state === "done" && !chain.matches)
+                        ? "bg-bg-2 ring-sep"
+                        : "bg-bg-2 ring-transparent"
+                  }`}
+                >
+                  <span className="mt-0.5 grid size-5 shrink-0 place-items-center">
+                    {chain.state === "running" ? (
+                      <span className="size-3.5 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                    ) : chain.state === "done" && chain.matches ? (
+                      <span className="grid size-5 place-items-center rounded-full bg-green text-white">
+                        <Check className="size-3" strokeWidth={3.5} />
+                      </span>
+                    ) : (
+                      <span className="size-2 rounded-full bg-label-3" />
+                    )}
+                  </span>
+                  <span className="min-w-0 text-[12px] leading-relaxed">
+                    {chain.state === "running" && <span className="text-label-2">Asking Portaldot&apos;s runtime to hash and decode the root block…</span>}
+                    {chain.state === "done" && (
+                      <>
+                        <span className="font-semibold text-label">
+                          {chain.matches ? "Portaldot agrees." : "Portaldot computed a different hash."}
+                        </span>{" "}
+                        <span className="text-label-2">
+                          Its runtime hashed the root block with blake2b (System precompile)
+                          {chain.kind === "raw" ? "" : ` and decoded ${chain.links} blocks, ${bytes(chain.size)}`} at block #
+                          {chain.block.toLocaleString("en-US")} in {chain.ms} ms. Nothing was deployed or paid.
+                        </span>
+                      </>
+                    )}
+                    {chain.state === "error" && <span className="text-label-2">{chain.message}</span>}
+                  </span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
             {doc?.file ? (

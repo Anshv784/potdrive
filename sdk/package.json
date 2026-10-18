@@ -1,6 +1,6 @@
 {
   "name": "@potdrive/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Store files in Portaldot's TransactionStorage: FastCDC chunking, blake2b IPFS CIDs, one-signature uploads, verified reads.",
   "license": "MIT",
   "type": "module",

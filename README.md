@@ -22,7 +22,7 @@
   <img src="https://img.shields.io/badge/IPFS-blake2b%20CIDs-65c2cb?logo=ipfs&logoColor=white" alt="IPFS CIDs">
   <img src="https://img.shields.io/badge/TypeScript-SDK-3178c6?logo=typescript&logoColor=white" alt="TypeScript">
   <img src="https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs" alt="Next.js">
-  <img src="https://img.shields.io/badge/tests-34%20SDK%20%2B%2012%20contract-34c759" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-39%20SDK%20%2B%2032%20contract%20%2B%206%20on--chain-34c759" alt="Tests">
   <a href="https://dorahacks.io/hackathon/portaldot-hacker-house-2026/detail"><img src="https://img.shields.io/badge/Portaldot%20Hacker%20House%202026-Modular%20Cloud%20%26%20Middleware-7b61ff" alt="Portaldot Hacker House 2026"></a>
 </p>
 
@@ -45,7 +45,7 @@ PotDrive is the missing layer. Files are chunked by content (FastCDC), addressed
 | Live | **[potdrive.anshverma.tech](https://potdrive.anshverma.tech)**: Drive, file pages, network explorer |
 | Docs | **[potdrive.anshverma.tech/docs](https://potdrive.anshverma.tech/docs)**: 21 pages, from concepts to API reference |
 | Network | Portaldot V3 testnet · `wss://test-node-v3.portaldot.dev` · EVM chain id `420420777` |
-| Registry | `PotDriveRegistry` on Revive: _deployed once test POT arrives_ (dry-run deploy verified, ≈ 224 tPOT deposit) |
+| Contracts | `PotDriveRegistry` (+ optional `PotDrivePermits`) on Revive: _deployed once test POT arrives_ (dry-run verified, ≈ 447 tPOT refundable deposit). `PotDriveCheck` already runs live through `eth_call` |
 | Package | `@potdrive/sdk` with React bindings at `@potdrive/sdk/react` |
 
 ### Hackathon
@@ -126,9 +126,22 @@ Take any one of these out and PotDrive stops working.
 | **TransactionStorage** (`store`, `renew`, `checkProof`) | Holds every chunk. Validators must prove a random 256-byte piece of each stored transaction one retention period later, or their block is invalid. |
 | **Bitswap RPC** (`bitswap_v1_get`) | The read path for everything: Drive, gateway, SDK, CLI and MCP. It serves any CIDv1 whose multihash is a stored blake2b digest, so PotDrive CIDs are ordinary IPFS CIDs. |
 | **Revive** (`instantiateWithCode`, `call`, `reviveApi`) | Runs `PotDriveRegistry`, plain EVM bytecode called from a Polkadot wallet in the same batch as the upload. It handles ownership, versions, prepaid keep-alive and sealed shares. |
+| **Revive System precompile** (`hashBlake256`, `sr25519Verify`) | Lets the Solidity contracts hash with TransactionStorage's own blake2b and check Polkadot wallet signatures, so the registry proves files instead of trusting uploaders. |
 | **Utility + Balances** (`batchAll`, `transferAll`) | Turn a many-transaction upload into one signature, and return the upload key's change. |
 | **MetaTx + VerifySignature** (`dispatch`) | Gasless uploads: users with 0 tPOT sign once, and a relay pays for the meta-transactions. |
 | **Nfts** (`create`, `mint`, `setMetadata`) | NFTs whose metadata and media both live on Portaldot. No collection existed on the V3 testnet before this. |
+
+### Contracts that check Portaldot itself
+
+A file registry usually writes down whatever the uploader claims. PotDrive's doesn't: [`PotDriveRegistry`](contracts/src/PotDriveRegistry.sol) receives the file's **root block**.
+
+- **Hash.** It hashes the root block with **Portaldot's blake2b through the System precompile**, the exact hash TransactionStorage indexes data under.
+- **Decode.** It parses the **IPFS dag-pb / UnixFS protobuf in Solidity**, and records the size and block count the bytes prove.
+- **Refuse forgeries.** A forged root is refused on the live chain with `SizeMismatch()`.
+- **Gasless registration.** [`PotDrivePermits`](contracts/src/PotDrivePermits.sol) rebuilds the readable text a Polkadot wallet showed, **CID base32-encoded in Solidity**, inside the `<Bytes>` wrapper. It checks the signature with **`sr25519Verify`**, so one wallet signature both sponsors the upload and registers the file.
+- **Free verification.** `PotDriveCheck` is never deployed. Its creation code runs through `eth_call`, so anyone's browser can ask Portaldot's runtime to verify a file, for free. The landing page does exactly that.
+
+Revive charges about **0.078 tPOT per byte of contract code**, so the design is driven by bytecode size. The first all-in-one version was 12,165 B, a 952 tPOT deposit; the deployed core is 5,619 B, about 447 tPOT. See [contracts/README.md](contracts/README.md) and [/docs/registry](https://potdrive.anshverma.tech/docs/registry).
 
 ### Who can read what
 
@@ -199,14 +212,16 @@ Storage on the V3 testnet costs about **105 tPOT per MiB**, so re-storing unchan
 - **Chunks can't share a batch.** `sc-client-db::apply_index_ops` keeps one index entry per extrinsic and stores the encoded extrinsic's last `size` bytes, hence the in-tab upload key.
 - **Bytes must be passed as hex.** polkadot.js reads a raw `Uint8Array` passed as `Bytes` as already length-prefixed. Passed raw, `store()` would index the wrong data and fee estimates would price empty payloads. This was caught by a test before any tPOT was spent.
 - **EVM constructors on Revive.** Arguments go on the end of the init code, and `data` must be empty, or you get `EvmConstructorNonEmptyData` (Revive error 54).
-- **Deposits shape the contract.** Revive charges 0.06 tPOT per stored byte. Records are two packed slots, and names, versions and shares are event logs. With `via_ir` and `runs = 1`, the deploy deposit fell from about 578 to about 224 tPOT.
+- **Deposits shape the contract.** Code costs about 0.078 tPOT per byte to deploy, measured by dry run. Read-only checks moved to `eth_call`, permits became an optional module, the IR optimizer's duplicated inlining was removed by using one entry point, and precompile calls are hand-assembled: 12,165 B (952 tPOT) down to 5,619 B (447 tPOT).
+- **Yul evaluates arguments right to left.** `and(staticcall(…), eq(mload(0), 1))` reads the result before the call runs; the call must be its own statement.
+- **No contract creation inside a dry run.** Revive here refuses `CREATE` from a contract during `eth_call` or `reviveApi.instantiate`, so live checks run each contract on its own.
 - **MetaTx signing.** The meta-tx pipeline is `(VerifySignature, MetaTxMarker, CheckNonZeroSender, CheckSpecVersion, CheckTxVersion, CheckGenesis, CheckMortality, CheckNonce, CheckMetadataHash)`, and the signature covers `blake2_256(version ‖ call ‖ explicit ‖ implicit)`. Browser wallets wrap raw messages in `<Bytes>`, so the wallet signs a readable authorization and the upload key signs the meta-txs.
 
 ---
 
 ## Verified
 
-- `bun test sdk`: **34 tests**.
+- `bun test sdk`: **39 tests**.
   - CIDs match `blake2b-256` exactly as TransactionStorage indexes it.
   - DAGs and directories are deterministic, with sorted links and path-traversal rejection.
   - FastCDC respects its bounds and re-uses chunks after edits where fixed chunking doesn't.
@@ -214,15 +229,27 @@ Storage on the V3 testnet costs about **105 tPOT per MiB**, so re-storing unchan
   - Wallet shares open only for the right inbox and are bound to their file root.
   - Sponsor authorizations accept raw and wallet-wrapped signatures and reject a tampered budget.
   - NFT metadata stays under the 256-byte limit.
+  - Permit text matches the contract, signatures cover every field, and a tampered budget fails.
 - `sdk/test/read.test.ts` runs the **entire read path against a fake Portaldot node**. That covers multi-chunk reassembly, range reads fetching only the needed chunks, stitching across chunk boundaries, refusing tampered bytes, and resolving folder paths.
-- `cd contracts && forge test`: **12 tests**. They cover ownership, expiry, private-by-default listing, re-registration, keeper reimbursement and its cap, owner-only withdraw, transfers, version links, inbox keys and owner-only sharing.
+- `cd contracts && forge test`: **32 tests**, run against fixtures the SDK generates. A stand-in precompile computes real blake2b on the EVM's BLAKE2 F precompile, so local hashes equal Portaldot's. The tests cover:
+  - UnixFS proofs, including forged sizes, non-blake2b links and unsorted directories;
+  - wallet permits: the text matches the SDK, there's no replay, every field is bound, and permits expire;
+  - keeper caps and timing;
+  - ownership, sharing and admin.
+- `bun scripts/onchain-check.ts`: **6 checks against Portaldot itself**, through `eth_call`:
+  - blake2b and UnixFS decode of a real 3 MiB file;
+  - a website directory;
+  - a raw block hashed by the runtime;
+  - a forged root refused;
+  - a real sr25519 wallet signature verified, and a tampered permit rejected.
 - **Gateway end to end** (`scripts/fake-node.ts` plus `POTDRIVE_RPC_URL`):
   - The directory redirect works and serves `index.html`.
   - `206` partial responses are byte-exact, including suffix ranges, plus `416`, `404` and downloads.
   - A stored site runs with an **opaque origin** (`window.origin === "null"`), and its `localStorage` access throws `SecurityError`.
 - **Against the live testnet:**
   - Fees measured with `paymentInfo`.
-  - The registry deploy dry-run passes through `reviveApi.instantiate`.
+  - Registry, permit and verifier deploys dry-run through `reviveApi.instantiate`, with their deposits measured.
+  - The address rule (`keccak256(publicKey)[12..]`) matches `reviveApi.address`.
   - Meta-transactions encode, decode and recover their signer.
   - The proof monitor reads real blocks.
 - `bun scripts/ui/readme-shots.ts` retakes every image in this README with Playwright, and fails on any page error.
@@ -243,14 +270,16 @@ sdk/src/            TypeScript SDK
   registry.ts       Revive registry reads (eth_call, eth_getLogs) and calls
   renew.ts keeper.ts proofs.ts state.ts
 sdk/react/          usePotFile, <PotImage>, <PotVideo>
-sdk/test/           34 tests, including a fake-node read path
-contracts/          PotDriveRegistry.sol + Foundry tests
+  permit.ts         readable sr25519 permits, mirrored byte for byte by the contract
+  onchain.ts        free on-chain verification: PotDriveCheck through eth_call
+sdk/test/           39 tests, including a fake-node read path
+contracts/          PotDriveRegistry, PotDrivePermits, PotDriveVerifier/Check + 32 Foundry tests
 src/app/            Next.js: landing, /drive, /f/[cid], /explore, /docs (21 pages)
 src/app/ipfs/       IPFS-style gateway with Range, directories, sandboxing
 src/app/api/        file metadata, chain state, proofs, keeper cron, MetaTx relay
 cli/potdrive.ts     put · get · deploy · info · renew · ls
 mcp/server.ts       MCP server for AI agents
-scripts/            deploy, CDC benchmark, fake node, README screenshots
+scripts/            deploy, live chain checks, ABI + fixture generators, CDC benchmark, fake node, screenshots
 ```
 
 ## Run it
@@ -262,6 +291,7 @@ bun run dev                          # http://localhost:3000  (/drive?simulate r
 # checks
 bun test sdk
 cd contracts && forge test && cd ..
+bun scripts/onchain-check.ts         # the contracts' checks, run by Portaldot itself (free)
 bun scripts/bench-cdc.ts
 
 # CLI
@@ -270,11 +300,11 @@ bun cli/potdrive.ts put ./deck.pdf --private
 bun cli/potdrive.ts deploy ./dist
 bun cli/potdrive.ts get <cid> -o deck.pdf
 
-# deploy the registry (≈ 224 tPOT refundable code deposit)
+# deploy the registry (≈ 447 tPOT refundable code deposit); --permits adds gasless registration
 POTDRIVE_SEED="…" KEEPER_SEED="…" bun scripts/deploy.ts
 ```
 
-Site environment: `NEXT_PUBLIC_REGISTRY`, `NEXT_PUBLIC_REGISTRY_BLOCK`, `KEEPER_SEED`, `CRON_SECRET`, `RELAYER_SEED`, `RELAY_MAX_BYTES`.
+Site environment: `NEXT_PUBLIC_REGISTRY`, `NEXT_PUBLIC_REGISTRY_BLOCK`, `NEXT_PUBLIC_PERMITS`, `KEEPER_SEED`, `CRON_SECRET`, `RELAYER_SEED`, `RELAY_MAX_BYTES`.
 
 ## Limits
 

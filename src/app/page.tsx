@@ -327,6 +327,12 @@ export default function Home() {
                   "batchAll · transferAll",
                   "Turns many transactions into one signature, and returns the change.",
                 ],
+                [
+                  "System precompile",
+                  "hashBlake256 · sr25519Verify",
+                  "Solidity hashes with Portaldot's blake2b and checks wallet signatures, so the registry proves files.",
+                ],
+                ["MetaTx", "metaTx.dispatch", "Gasless uploads: one readable wallet signature, and a relay pays every fee."],
               ].map(([name, calls, what]) => (
                 <TiltCard key={name} className="rounded-[28px] bg-bg-2 p-8" max={4}>
                   <div className="text-[21px] font-semibold tracking-[-0.02em]">{name}</div>
