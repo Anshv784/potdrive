@@ -45,7 +45,7 @@ PotDrive is the missing layer. Files are chunked by content (FastCDC), addressed
 | Live | **[potdrive.anshverma.tech](https://potdrive.anshverma.tech)**: Drive, file pages, network explorer |
 | Docs | **[potdrive.anshverma.tech/docs](https://potdrive.anshverma.tech/docs)**: 21 pages, from concepts to API reference |
 | Network | Portaldot V3 testnet · `wss://test-node-v3.portaldot.dev` · EVM chain id `420420777` |
-| Contracts | `PotDriveRegistry` (+ optional `PotDrivePermits`) on Revive: _deployed once test POT arrives_ (dry-run verified, ≈ 447 tPOT refundable deposit). `PotDriveCheck` already runs live through `eth_call` |
+| Registry | **`PotDriveRegistry` [`0xdd3e268957ebeccfcca61b5676e31e620160d027`](https://node-console.portaldot.dev/#/explorer/query/89181)** on Revive, deployed in block #89181 · tx `0x772bbc3de2241089ed9ffe21658d884ec07134b2e9abc79d3e71c97ab7c81f4e` (extrinsic `89181-1`). `PotDriveCheck` runs live through `eth_call` |
 | Package | `@potdrive/sdk` with React bindings at `@potdrive/sdk/react` |
 
 ### Hackathon
@@ -254,7 +254,13 @@ Storage on the V3 testnet costs about **105 tPOT per MiB**, so re-storing unchan
   - The proof monitor reads real blocks.
 - `bun scripts/ui/readme-shots.ts` retakes every image in this README with Playwright, and fails on any page error.
 
-**Not yet on chain:** the first real `store`, the registry deployment and the relay all wait on test POT from the Portaldot team. This section will list their transaction hashes.
+**On chain (Portaldot V3 testnet):**
+
+| What | Where |
+|---|---|
+| `PotDriveRegistry` deployed | [`0xdd3e268957ebeccfcca61b5676e31e620160d027`](https://node-console.portaldot.dev/#/explorer/query/89181), block #89181, tx `0x772bbc3de2241089ed9ffe21658d884ec07134b2e9abc79d3e71c97ab7c81f4e` (`revive.instantiateWithCode`, signed from a browser wallet at `/deploy`) |
+
+The first real upload and the gasless module (`PotDrivePermits`) are next.
 
 ## Repository
 
