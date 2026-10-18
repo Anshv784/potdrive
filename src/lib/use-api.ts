@@ -18,6 +18,22 @@ export function loadApi(): Promise<ApiPromise> {
   return shared;
 }
 
+/** The shared API, connected. WebSockets to the public node drop now and then; the provider
+ * reconnects on its own, so wait for it instead of failing the action. */
+export async function connectedApi(timeoutMs = 30_000): Promise<ApiPromise> {
+  const api = await loadApi();
+  if (api.isConnected) return api;
+  await new Promise<void>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error("Portaldot's node is not answering. Try again in a moment.")), timeoutMs);
+    api.once("connected", () => {
+      clearTimeout(t);
+      resolve();
+    });
+  });
+  await api.isReady;
+  return api;
+}
+
 export function useApi() {
   const [api, setApi] = useState<ApiPromise | null>(null);
   const [error, setError] = useState<string | null>(null);

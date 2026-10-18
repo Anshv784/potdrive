@@ -12,6 +12,7 @@ import { REGISTRY, SITE } from "@/lib/config";
 import { signerOf, type InjectedAccount } from "@/lib/wallet";
 import { saveLocalFile, sessionStore } from "@/lib/library";
 import { fakeEstimate, fakeUpload } from "@/lib/simulate";
+import { connectedApi } from "@/lib/use-api";
 import { BlockGrid, StepList } from "./blocks";
 import { CopyButton } from "../code";
 import { Button, DocIcon, Group, Ring, Row, Segmented, Spinner, Switch } from "../ui";
@@ -32,7 +33,6 @@ const KEEP = [
 type Phase = "preparing" | "review" | "running" | "done" | "error";
 
 export function UploadFlow({
-  api,
   account,
   balance,
   file,
@@ -122,9 +122,9 @@ export function UploadFlow({
     setEstimating(true);
     (async () => {
       if (simulate) return fakeEstimate(prepared, 0n);
-      if (!api) throw new Error("Not connected to Portaldot yet");
+      const chain = await connectedApi();
       const { estimateUpload } = await import("@potdrive/sdk/upload");
-      return estimateUpload(api, prepared, account.address, { registry: REGISTRY });
+      return estimateUpload(chain, prepared, account.address, { registry: REGISTRY });
     })()
       .then((e) => live && setBase(e))
       .catch((e) => live && setError(String(e?.message ?? e)))
@@ -132,7 +132,7 @@ export function UploadFlow({
     return () => {
       live = false;
     };
-  }, [prepared, api, account.address, simulate]);
+  }, [prepared, account.address, simulate]);
 
   const keepAlive = useMemo(() => (base && REGISTRY ? (base.storeFees * BigInt(periods) * 110n) / 100n : 0n), [base, periods]);
   useEffect(() => {
@@ -191,12 +191,12 @@ export function UploadFlow({
       if (simulate) {
         r = await fakeUpload(prepared, keepAlive, onEvent);
       } else {
-        if (!api) throw new Error("Not connected to Portaldot");
+        const chain = await connectedApi();
         const signer = await signerOf(account.source);
         if (sponsored) {
           const [{ uploadSponsored }, { stringToU8a, u8aToHex }] = await Promise.all([import("@potdrive/sdk/sponsored"), import("@polkadot/util")]);
           r = await uploadSponsored({
-            api,
+            api: chain,
             file: prepared,
             relayUrl: "/api/relay",
             permits: relay?.permits,
@@ -213,7 +213,7 @@ export function UploadFlow({
         } else {
           const { uploadFile } = await import("@potdrive/sdk/upload");
           r = await uploadFile({
-            api,
+            api: chain,
             file: prepared,
             owner: { address: account.address, signer },
             registry: REGISTRY,
