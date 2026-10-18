@@ -3,6 +3,9 @@ import type { SubmittableExtrinsic } from "@polkadot/api/types";
 import type { KeyringPair } from "@polkadot/keyring/types";
 import { compactToU8a, u8aConcat, u8aToHex, u8aToU8a, stringToU8a, u8aWrapBytes } from "@polkadot/util";
 import { blake2AsU8a, signatureVerify } from "@polkadot/util-crypto";
+import type { Address, Hex } from "viem";
+import { parseCid } from "./cid";
+import { permitText } from "./permit";
 
 // Meta-transactions through Portaldot's MetaTx pallet. The signer authorizes a call; a
 // relayer submits metaTx.dispatch and pays the transaction fee.
@@ -80,9 +83,21 @@ export interface SponsorAuth {
   root: string;
   bytes: number;
   expires: number; // block number
+  /** When set, the same signature is also a PotDrivePermits permit: the contract registers the
+   * file for `account` after checking it with sr25519, so one wallet popup covers both. */
+  permit?: { registry: Address; isPrivate: boolean; name: string; mime: string; parent: Hex; nonce: string };
+}
+
+/** The sponsor's own terms, carried in the permit's free-form tail. */
+export function sponsorTerms(a: SponsorAuth): string {
+  return [`sponsored upload for: ${a.account}`, `upload key: ${a.uploadKey}`, `bytes: ${a.bytes}`].join("\n");
 }
 
 export function sponsorMessage(a: SponsorAuth): string {
+  if (a.permit) {
+    const { registry, nonce, ...meta } = a.permit;
+    return permitText({ root: parseCid(a.root), meta, registry, nonce: BigInt(nonce), deadline: a.expires, extra: sponsorTerms(a) });
+  }
   return [
     "PotDrive sponsored upload",
     `account: ${a.account}`,

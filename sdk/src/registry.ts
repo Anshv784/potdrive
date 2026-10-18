@@ -1,9 +1,10 @@
 import type { ApiPromise } from "@polkadot/api";
 import type { SubmittableExtrinsic } from "@polkadot/api/types";
-import { createPublicClient, defineChain, encodeFunctionData, http, type Address, type Hex, type PublicClient } from "viem";
-import { registryAbi } from "./abi";
+import { createPublicClient, defineChain, encodeFunctionData, http, stringToHex, type Address, type Hex, type PublicClient } from "viem";
+import { permitsAbi, registryAbi } from "./abi";
 import { NATIVE_TO_EVM, NETWORK } from "./network";
-import { contentHash, DAG_PB, parseCid } from "./cid";
+import { cidFromContentHash, contentHash, DAG_PB, parseCid, RAW } from "./cid";
+import { metaOf, uploadOf } from "./permit";
 import type { PreparedFile } from "./prepare";
 
 export const portaldot = defineChain({
@@ -29,18 +30,33 @@ export interface RegistryFile {
   keepAlive?: bigint;
   registeredIn?: number;
   parent?: Hex;
+  /** Size and blocks were proven on chain from the root block (dag-pb roots). */
+  proven: boolean;
+  /** 0 a single raw block, 1 a directory, 2 a file. */
+  kind: number;
+  /** Bytes TransactionStorage holds for it: content plus the root block. */
+  storedBytes: number;
 }
 
-type Tuple = readonly [Address, bigint, number, number, number, bigint, boolean, boolean];
+/** The CID of a registry record. The codec follows from what the contract decoded. */
+export function cidOf(f: { root: Hex; kind: number }) {
+  return cidFromContentHash(f.root, f.kind === 0 ? RAW : DAG_PB);
+}
+
+// files(root): owner, size, flags, kind, chunks, storedAt, expiresAt, rootLen, keepAlive
+type Tuple = readonly [Address, bigint, number, number, number, number, number, number, bigint];
+const PRIVATE = 1;
+const UNLISTED = 2;
+const PROVEN = 4;
 
 const ZERO = /^0x0+$/;
 
 async function state(registry: Address, root: Hex): Promise<Tuple> {
-  return (await evm.readContract({ address: registry, abi: registryAbi, functionName: "fileOf", args: [root] })) as Tuple;
+  return (await evm.readContract({ address: registry, abi: registryAbi, functionName: "files", args: [root] })) as unknown as Tuple;
 }
 
 function merge(root: Hex, t: Tuple, meta: { name: string; mime: string; block?: number; parent?: Hex }): RegistryFile {
-  const [owner, size, chunks, storedAt, expiresAt, keepAlive, isPrivate, listed] = t;
+  const [owner, size, flags, kind, chunks, storedAt, expiresAt, rootLen, keepAlive] = t;
   return {
     root,
     owner,
@@ -48,8 +64,11 @@ function merge(root: Hex, t: Tuple, meta: { name: string; mime: string; block?: 
     chunks: Number(chunks),
     storedAt: Number(storedAt),
     expiresAt: Number(expiresAt),
-    isPrivate,
-    listed,
+    isPrivate: (flags & PRIVATE) !== 0,
+    listed: (flags & UNLISTED) === 0,
+    proven: (flags & PROVEN) !== 0,
+    kind: Number(kind),
+    storedBytes: Number(size) + Number(rootLen),
     name: meta.name,
     mime: meta.mime,
     keepAlive,
@@ -124,22 +143,31 @@ export async function evmAddressOf(api: ApiPromise, ss58: string): Promise<Addre
   return (await api.call.reviveApi.address(ss58)).toString() as Address;
 }
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+const ZERO32 = `0x${"0".repeat(64)}` as Hex;
+
+const parentDigest = (file: PreparedFile) => (file.parent ? contentHash(parseCid(file.parent)) : undefined);
+
+/** register(): a dag-pb root block is sent whole, so the contract proves its size and blocks. */
 export function registerCalldata(file: PreparedFile): Hex {
-  // Readers derive the codec from this: >1 means a dag-pb root (file or directory).
-  const chunks = file.root.code === DAG_PB ? Math.max(2, file.blocks.length) : 1;
   return encodeFunctionData({
     abi: registryAbi,
     functionName: "register",
-    args: [
-      contentHash(file.root),
-      BigInt(file.storedBytes),
-      chunks,
-      file.private,
-      file.name,
-      file.mime,
-      file.parent ? contentHash(parseCid(file.parent)) : (`0x${"0".repeat(64)}` as Hex),
-    ],
+    args: [uploadOf(file), metaOf(file, parentDigest(file)), ZERO_ADDRESS, ZERO32],
   });
+}
+
+/** PotDrivePermits.register(): a sponsor submits a wallet-signed permit for the file's owner. */
+export function permitRegisterCalldata(file: PreparedFile, p: { signer: Hex; deadline: number; signature: Hex; extra?: string }): Hex {
+  return encodeFunctionData({
+    abi: permitsAbi,
+    functionName: "register",
+    args: [uploadOf(file), metaOf(file, parentDigest(file)), p.signer, p.deadline, p.signature, stringToHex(p.extra ?? "")],
+  });
+}
+
+export async function permitNonce(permits: Address, signer: Hex): Promise<bigint> {
+  return (await evm.readContract({ address: permits, abi: permitsAbi, functionName: "nonces", args: [signer] })) as bigint;
 }
 
 export function fundCalldata(root: Hex): Hex {

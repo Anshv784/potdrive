@@ -1,7 +1,11 @@
 import type { ApiPromise } from "@polkadot/api";
 import { Keyring } from "@polkadot/keyring";
-import { cryptoWaitReady, mnemonicGenerate } from "@polkadot/util-crypto";
-import { contentHash } from "./cid";
+import { cryptoWaitReady, decodeAddress, mnemonicGenerate } from "@polkadot/util-crypto";
+import { u8aToHex } from "@polkadot/util";
+import type { Address, Hex } from "viem";
+import { contentHash, parseCid } from "./cid";
+import { uploadOf, type Upload } from "./permit";
+import { permitNonce } from "./registry";
 import { exists } from "./fetch";
 import { signMetaTx, sponsorMessage, type SponsorAuth } from "./metatx";
 import { NETWORK } from "./network";
@@ -18,12 +22,19 @@ export interface RelayStatus {
   relayer?: string;
   balance?: string;
   maxBytes: number;
+  /** Set when the relay can also register files on chain through PotDrivePermits. */
+  permits?: { registry: Address; permits: Address };
 }
 
 export async function relayStatus(relayUrl: string): Promise<RelayStatus> {
   const r = await fetch(relayUrl);
   if (!r.ok) return { enabled: false, maxBytes: 0 };
   return r.json();
+}
+
+/** bigint does not survive JSON; leafSize travels as a string. */
+export function jsonUpload(u: Upload) {
+  return { rootNode: u.rootNode, leaf: u.leaf, leafSize: u.leafSize.toString() };
 }
 
 async function post<T>(relayUrl: string, body: unknown): Promise<T> {
@@ -38,6 +49,8 @@ export interface SponsoredOptions {
   file: PreparedFile;
   owner: { address: string; signRaw: (message: string) => Promise<string> };
   relayUrl: string;
+  /** Registry + permit module: the same wallet signature also registers the file on chain. */
+  permits?: { registry: Address; permits: Address };
   onEvent?: (e: UploadEvent) => void;
 }
 
@@ -65,6 +78,12 @@ export async function uploadSponsored(opts: SponsoredOptions): Promise<UploadRes
   emit({ type: "stage", stage: "authorize" });
   const head = (await api.rpc.chain.getHeader()).number.toNumber();
   const auth: SponsorAuth = { account: owner.address, uploadKey: key.address, root: file.root.toString(), bytes: newBytes, expires: head + 300 };
+  const signerKey = u8aToHex(decodeAddress(owner.address));
+  if (opts.permits) {
+    const nonce = await permitNonce(opts.permits.permits, signerKey);
+    const parent = file.parent ? contentHash(parseCid(file.parent)) : (`0x${"0".repeat(64)}` as Hex);
+    auth.permit = { registry: opts.permits.registry, isPrivate: file.private, name: file.name, mime: file.mime, parent, nonce: nonce.toString() };
+  }
   const signature = await owner.signRaw(sponsorMessage(auth));
   const opened = await post<{ tx: string; blockNumber: number }>(relayUrl, { action: "open", auth, signature });
   emit({ type: "authorized", tx: { hash: opened.tx, blockHash: "", blockNumber: opened.blockNumber, extrinsicIndex: -1, events: [] } });
@@ -93,10 +112,17 @@ export async function uploadSponsored(opts: SponsoredOptions): Promise<UploadRes
   const t = performance.now();
   for (let i = 0; i < 10 && !(await exists(file.root).catch(() => false)); i++) await new Promise((r) => setTimeout(r, 1500));
   emit({ type: "verified", ms: performance.now() - t });
+  // The relay submits the same signature to PotDrivePermits, which re-checks it with sr25519
+  // and registers the file, proven from its root block, to this wallet's Revive address.
+  let registeredTx: string | undefined;
+  if (auth.permit) {
+    const reg = await post<{ tx: string }>(relayUrl, { action: "register", auth, signature, upload: jsonUpload(uploadOf(file)) });
+    registeredTx = reg.tx;
+  }
   emit({ type: "stage", stage: "sweep" });
   emit({ type: "swept" });
 
-  const result: UploadResult = { root: file.root.toString(), key: file.key, blocks, deduplicated: todo.length === 0 };
+  const result: UploadResult = { root: file.root.toString(), key: file.key, blocks, deduplicated: todo.length === 0, registeredTx };
   emit({ type: "stage", stage: "done" });
   emit({ type: "done", result });
   return result;

@@ -2,10 +2,9 @@ import type { ApiPromise } from "@polkadot/api";
 import type { KeyringPair } from "@polkadot/keyring/types";
 import { encodeFunctionData, type Address, type Hex } from "viem";
 import { registryAbi } from "./abi";
-import { cidFromContentHash, DAG_PB, RAW } from "./cid";
 import { NETWORK } from "./network";
 import { expiresAt, placements } from "./renew";
-import { evmValue, readPage, reviveCall, type RegistryFile } from "./registry";
+import { cidOf, evmValue, readPage, reviveCall, type RegistryFile } from "./registry";
 import { listStored } from "./state";
 import { send } from "./tx";
 
@@ -36,7 +35,7 @@ export async function runKeeper(api: ApiPromise, keeper: KeyringPair, registry: 
   const out: KeeperAction[] = [];
   for (const f of files) {
     if (!f.keepAlive || f.keepAlive === 0n) continue;
-    const cid = cidFromContentHash(f.root, f.chunks > 1 ? DAG_PB : RAW).toString();
+    const cid = cidOf(f).toString();
     const base = { root: f.root, cid, name: f.name || "private file" };
     try {
       const ps = await placements(api, cid, entries);
@@ -64,7 +63,9 @@ export async function runKeeper(api: ApiPromise, keeper: KeyringPair, registry: 
       const nonce = (await api.rpc.system.accountNextIndex(keeper.address)).toNumber();
       const included = await Promise.all(txs.map((t, i) => send(api, t, keeper, { nonce: nonce + i })));
       const newExpiry = Math.min(...included.map((i) => i.blockNumber)) + NETWORK.retentionBlocks;
-      const claim = encodeFunctionData({ abi: registryAbi, functionName: "renewed", args: [f.root, newExpiry, evmValue(cost)] });
+      // The contract checks the claim against what it proved: capped per stored byte, near
+      // expiry only, at most one retention period ahead.
+      const claim = encodeFunctionData({ abi: registryAbi, functionName: "claimRenewal", args: [f.root, newExpiry, evmValue(cost)] });
       await send(api, await reviveCall(api, keeper.address, registry, claim), keeper);
       out.push({ ...base, action: "renewed", expiresAt: newExpiry, cost: cost.toString() });
     } catch (e) {

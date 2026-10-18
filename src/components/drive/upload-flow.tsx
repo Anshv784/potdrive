@@ -147,7 +147,7 @@ export function UploadFlow({
   }, [phase]);
 
   // Gasless uploads through the MetaTx relay.
-  const [relay, setRelay] = useState<{ enabled: boolean; maxBytes: number } | null>(null);
+  const [relay, setRelay] = useState<{ enabled: boolean; maxBytes: number; permits?: { registry: `0x${string}`; permits: `0x${string}` } } | null>(null);
   const [pay, setPay] = useState<"wallet" | "sponsored">("wallet");
   useEffect(() => {
     fetch("/api/relay")
@@ -199,6 +199,7 @@ export function UploadFlow({
             api,
             file: prepared,
             relayUrl: "/api/relay",
+            permits: relay?.permits,
             owner: {
               address: account.address,
               signRaw: async (message) => {
@@ -397,7 +398,9 @@ export function UploadFlow({
                     footer={
                       canSponsor
                         ? sponsored
-                          ? "PotDrive pays the fees through Portaldot's MetaTx pallet. You sign one readable authorization; nothing leaves your balance. Sponsored files are not registered, so keep-alive is off."
+                          ? relay.permits
+                            ? "PotDrive pays every fee. One readable signature covers the storage (MetaTx pallet) and the on-chain registration: the contract re-checks it with sr25519. Nothing leaves your balance."
+                            : "PotDrive pays the fees through Portaldot's MetaTx pallet. You sign one readable authorization; nothing leaves your balance. Sponsored files are not registered, so keep-alive is off."
                           : "Sponsored uploads cover up to " + bytes(relay.maxBytes) + " of new data, paid by PotDrive through the MetaTx pallet."
                         : `Sponsorship covers up to ${bytes(relay.maxBytes)} of new data. This upload is larger.`
                     }

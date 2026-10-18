@@ -60,6 +60,8 @@ export interface UploadResult {
   key?: string;
   blocks: BlockState[];
   authorizeTx?: string;
+  /** Sponsored uploads: the registry transaction the relay submitted with the wallet's permit. */
+  registeredTx?: string;
   deduplicated: boolean;
 }
 

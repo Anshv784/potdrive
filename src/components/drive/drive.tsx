@@ -180,9 +180,9 @@ export function Drive() {
     }
     if (REGISTRY && api && !simulate) {
       try {
-        const [{ evmAddressOf, readOwned }, { cidFromContentHash, DAG_PB, RAW }] = await Promise.all([import("@potdrive/sdk/registry"), import("@potdrive/sdk/cid")]);
+        const [{ evmAddressOf, readOwned, cidOf }, { cidFromContentHash, DAG_PB }] = await Promise.all([import("@potdrive/sdk/registry"), import("@potdrive/sdk/cid")]);
         for (const r of await readOwned(REGISTRY, await evmAddressOf(api, account.address))) {
-          const cid = cidFromContentHash(r.root, r.chunks > 1 ? DAG_PB : RAW).toString();
+          const cid = cidOf(r).toString();
           const prev = byRoot.get(cid);
           byRoot.set(cid, {
             root: cid,
@@ -219,10 +219,9 @@ export function Drive() {
     if (!inbox) return;
     let live = true;
     (async () => {
-      const [{ evmAddressOf, readSharedWith, readFile }, { openFromInbox }, { cidFromContentHash, DAG_PB, RAW }] = await Promise.all([
+      const [{ evmAddressOf, readSharedWith, readFile, cidOf }, { openFromInbox }] = await Promise.all([
         import("@potdrive/sdk/registry"),
         import("@potdrive/sdk/share"),
-        import("@potdrive/sdk/cid"),
       ]);
       const out: DriveFile[] = [];
       for (const sh of await readSharedWith(REGISTRY, await evmAddressOf(api, account.address))) {
@@ -230,7 +229,7 @@ export function Drive() {
         const key = await openFromInbox(sh.sealedKey, inbox.privateKey, sh.root).catch(() => null);
         if (!rec || !key) continue;
         out.push({
-          root: cidFromContentHash(sh.root, rec.chunks > 1 ? DAG_PB : RAW).toString(),
+          root: cidOf({ root: sh.root, kind: rec.kind }).toString(),
           name: "",
           mime: "application/octet-stream",
           size: rec.size,

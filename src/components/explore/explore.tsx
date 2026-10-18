@@ -15,6 +15,8 @@ interface RegFile {
   owner: string;
   size: number;
   chunks: number;
+  kind: number;
+  proven: boolean;
   expiresAt: number;
   isPrivate: boolean;
   name: string;
@@ -131,7 +133,7 @@ export function Explore() {
                 index={i}
                 head={data.head}
                 f={{
-                  root: cidFromContentHash(f.root, f.chunks > 1 ? DAG_PB : RAW).toString(),
+                  root: cidFromContentHash(f.root, f.kind === 0 ? RAW : DAG_PB).toString(),
                   name: f.name,
                   mime: f.mime,
                   size: f.size,
